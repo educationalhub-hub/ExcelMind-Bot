@@ -5,7 +5,8 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import P from 'pino';
-
+import qrcode from 'qrcode-terminal';
+import qrcode from 'qrcode-terminal';
 import {
   containsLink,
   resetLinkRegex,
@@ -19,18 +20,29 @@ async function startBot() {
   const sock = makeWASocket({
     auth: state,
     logger: P({ level: 'silent' }),
-    printQRInTerminal: true,
   });
+if (!state.creds.registered) {
+  const phoneNumber = process.env.PHONE_NUMBER;
 
+  if (!phoneNumber) {
+    throw new Error(
+      'PHONE_NUMBER is missing. Check your local .env file.'
+    );
+  }
+
+  const code = await sock.requestPairingCode(phoneNumber);
+
+  console.log('📱 WhatsApp Pairing Code:');
+  console.log(code);
+}
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+  const { connection, lastDisconnect } = update;
 
-    if (connection === 'open') {
-      console.log('✅ ExcelMind-Bot connected to WhatsApp!');
-    }
-
+  if (connection === 'open') {
+    console.log('✅ ExcelMind-Bot connected to WhatsApp!');
+  }
     if (connection === 'close') {
       const shouldReconnect =
         lastDisconnect?.error instanceof Boom
