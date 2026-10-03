@@ -1,5 +1,6 @@
 export const config = {
   botName: 'ExcelMind-Bot',
+  botDisplayName: 'Bot',
 
   antiLink: {
     enabled: true,

@@ -26,6 +26,7 @@ import {
   containsAbuse,
 } from './antiLink.js';
 import { getGroupSetting } from './botState.js';
+import { config } from './config.js';
 
 const dashboard = createDashboardServer();
 dashboard.server.on('error', (error) => {
@@ -90,6 +91,20 @@ async function startBot() {
         addLog('bot_connected', {
           details: `Connected as ${sock.user?.id || 'unknown'}`,
         });
+
+        // Set the bot's WhatsApp profile name so group members recognise it as a bot.
+        const adminGroups = botState.groups.filter((g) => g.isAdmin);
+        if (adminGroups.length > 0) {
+          try {
+            await sock.updateProfileName(config.botDisplayName);
+            addLog('profile_name_set', {
+              details: `Profile name set to "${config.botDisplayName}"`,
+            });
+            console.log(`🏷️ Profile name set to "${config.botDisplayName}" for ${adminGroups.length} admin group(s).`);
+          } catch (error) {
+            console.error('❌ Failed to set profile name:', error.message);
+          }
+        }
       } catch (error) {
         console.error('❌ Failed to fetch groups:', error.message);
       }
