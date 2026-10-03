@@ -1,4 +1,20 @@
 services:
+  db:
+    image: postgres:16-slim
+    restart: on-failure
+    environment:
+      POSTGRES_USER: botuser
+      POSTGRES_PASSWORD: botpass_dev_2024
+      POSTGRES_DB: excelmind
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botuser -d excelmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   bot:
     image: node:22-slim
     working_dir: /app
@@ -8,8 +24,14 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+    environment:
+      - DATABASE_URL=postgres://botuser:botpass_dev_2024@db:5432/excelmind
+      - BASE44_PUBLIC_HOST_SUFFIX=${BASE44_PUBLIC_HOST_SUFFIX}
     env_file:
       - /run/base44/app.env
+    depends_on:
+      db:
+        condition: service_healthy
     command: ["sh", "-ec", "npm ci && exec node --watch src/index.js"]
     healthcheck:
       test:
@@ -20,4 +42,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 40s
+
+volumes:
+  pgdata:

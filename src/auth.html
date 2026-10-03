@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExcelMind-Bot — Sign in</title>
+<style>
+:root{--primary:#14754e;--bg:#f0f5f3;--card:#fff;--text:#18372c;--muted:#52695e;--border:#dce8e1;--accent:#0d9668;--danger:#dc2626;--radius:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:40px;max-width:420px;width:100%}
+.auth-card h1{font-size:28px;font-weight:800;margin-bottom:8px;text-align:center}
+.auth-card p.subtitle{text-align:center;color:var(--muted);margin-bottom:28px;font-size:15px}
+.tabs{display:flex;gap:8px;margin-bottom:24px;background:#e6f4ea;border-radius:10px;padding:4px}
+.tab{flex:1;text-align:center;padding:10px;border-radius:8px;cursor:pointer;font-weight:600;font-size:15px;color:var(--muted);transition:all .15s;border:none;background:transparent}
+.tab.active{background:var(--primary);color:#fff}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.form-group input{width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:10px;font-size:16px;outline:none;transition:border-color .15s}
+.form-group input:focus{border-color:var(--primary)}
+.btn{display:block;width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:16px;cursor:pointer;border:none;background:var(--primary);color:#fff;transition:transform .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn:disabled{opacity:.6;cursor:wait}
+.error-msg{background:#fee2e2;color:var(--danger);padding:10px 14px;border-radius:10px;font-size:14px;margin-bottom:16px;display:none}
+.back-link{display:block;text-align:center;margin-top:20px;color:var(--muted);font-size:14px}
+.name-field{display:none}
+</style>
+</head>
+<body>
+<div class="auth-card">
+  <h1>🤖 ExcelMind-Bot</h1>
+  <p class="subtitle" id="subtitle">Welcome back. Log in to manage your bots.</p>
+  <div class="error-msg" id="error"></div>
+  <div class="tabs">
+    <button class="tab active" id="tab-login" onclick="switchMode('login')">Log in</button>
+    <button class="tab" id="tab-signup" onclick="switchMode('signup')">Sign up</button>
+  </div>
+  <form id="auth-form" onsubmit="return submitForm(event)">
+    <div class="form-group name-field" id="name-field">
+      <label for="name">Name (optional)</label>
+      <input type="text" id="name" placeholder="Your name">
+    </div>
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com" required>
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Min 6 characters" required>
+    </div>
+    <button type="submit" class="btn" id="submit-btn">Log in</button>
+  </form>
+  <a href="/" class="back-link">← Back to home</a>
+</div>
+
+<script>
+let mode = 'login';
+function switchMode(m) {
+  mode = m;
+  document.getElementById('tab-login').classList.toggle('active', m === 'login');
+  document.getElementById('tab-signup').classList.toggle('active', m === 'signup');
+  document.getElementById('name-field').style.display = m === 'signup' ? 'block' : 'none';
+  document.getElementById('submit-btn').textContent = m === 'signup' ? 'Create account' : 'Log in';
+  document.getElementById('subtitle').textContent = m === 'signup' ? 'Create your account and start building bots.' : 'Welcome back. Log in to manage your bots.';
+}
+
+// Auto-detect mode from URL
+if (location.pathname === '/signup') switchMode('signup');
+
+async function submitForm(e) {
+  e.preventDefault();
+  const btn = document.getElementById('submit-btn');
+  const errEl = document.getElementById('error');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Please wait...';
+
+  const body = {
+    email: document.getElementById('email').value.trim(),
+    password: document.getElementById('password').value,
+  };
+  if (mode === 'signup') body.name = document.getElementById('name').value.trim();
+
+  try {
+    const res = await fetch('/api/auth/' + mode, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Something went wrong';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = mode === 'signup' ? 'Create account' : 'Log in';
+      return;
+    }
+    window.location.href = '/dashboard';
+  } catch (err) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = mode === 'signup' ? 'Create account' : 'Log in';
+  }
+  return false;
+}
+</script>
+</body>
+</html>

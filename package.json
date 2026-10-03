@@ -1,7 +1,7 @@
 {
   "name": "excelmind-bot",
   "version": "1.0.0",
-  "description": "ExcelMind-Bot - WhatsApp group moderation bot with admin-only anti-link protection.",
+  "description": "ExcelMind-Bot — WhatsApp bot SaaS platform for creating and managing moderation bots.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -15,9 +15,15 @@
   "dependencies": {
     "@hapi/boom": "^10.0.1",
     "@whiskeysockets/baileys": "^6.7.20",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
     "pino": "^9.9.0",
     "qrcode": "1.5.4",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "stripe": "^17.5.0"
   }
 }

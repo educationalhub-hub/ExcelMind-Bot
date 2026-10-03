@@ -1,335 +1,282 @@
-import { createServer } from 'node:http';
+import express from 'express';
+import cookieParser from 'cookie-parser';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { requireAuth, authRouter, COOKIE_NAME } from './auth.js';
+import { billingRouter, handleStripeWebhook } from './billing.js';
+import { config } from './config.js';
 
-async function readBody(request) {
-  const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
+async function sendHtml(res, file) {
   try {
-    return JSON.parse(Buffer.concat(chunks).toString());
+    const page = await readFile(new URL(file, import.meta.url));
+    res.type('html').send(page);
   } catch {
-    return null;
+    res.status(500).send('Page unavailable');
   }
 }
 
-function sendJson(response, status, data) {
-  response.writeHead(status, { 'Content-Type': 'application/json' });
-  response.end(JSON.stringify(data));
-}
+export function createApp(botManager) {
+  const app = express();
 
-export function createDashboardServer(botManager) {
-  const server = createServer(async (request, response) => {
-    response.setHeader('Cache-Control', 'no-store');
-    response.setHeader('X-Content-Type-Options', 'nosniff');
-    response.setHeader('Referrer-Policy', 'no-referrer');
+  // Stripe webhook needs raw body — register BEFORE express.json
+  app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
-    const url = new URL(request.url, 'http://localhost');
-    const path = url.pathname;
-    const method = request.method;
+  app.use(express.json());
+  app.use(cookieParser());
 
-    // Dashboard page
-    if (method === 'GET' && (path === '/' || path === '/index.html')) {
-      try {
-        const page = await readFile(new URL('./dashboard.html', import.meta.url));
-        response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        response.end(page);
-      } catch {
-        response.writeHead(500);
-        response.end('Dashboard unavailable');
-      }
-      return;
-    }
+  // --- Static pages ---
+  app.get('/', (req, res) => sendHtml(res, './landing.html'));
+  app.get('/login', (req, res) => sendHtml(res, './auth.html'));
+  app.get('/signup', (req, res) => sendHtml(res, './auth.html'));
+  app.get('/dashboard', (req, res) => sendHtml(res, './dashboard.html'));
 
-    if (path === '/favicon.ico') {
-      response.writeHead(204);
-      response.end();
-      return;
-    }
+  // --- API: Auth ---
+  app.use('/api/auth', authRouter());
 
-    // --- Bot-scoped routes: /api/bots/:id/... ---
-    const botMatch = path.match(/^\/api\/bots\/([^/]+)(\/.*)?$/);
-    const botId = botMatch ? botMatch[1] : null;
-    const subPath = botMatch ? (botMatch[2] || '') : null;
+  // --- API: Billing ---
+  app.use('/api/billing', billingRouter());
 
-    // List all bots
-    if (method === 'GET' && path === '/api/bots') {
-      sendJson(response, 200, botManager.listBots());
-      return;
-    }
-
-    // Add a new bot
-    if (method === 'POST' && path === '/api/bots') {
-      const body = await readBody(request);
-      if (!body?.number) {
-        sendJson(response, 400, { error: 'number is required' });
-        return;
-      }
-      try {
-        const bot = await botManager.addBot({
-          number: body.number,
-          displayName: body.displayName || null,
-          role: body.role || 'Moderator',
-        });
-        sendJson(response, 200, bot.getStatusSummary());
-      } catch (error) {
-        sendJson(response, 400, { error: error.message });
-      }
-      return;
-    }
-
-    // Aggregate status (health-check + backwards-compatible with single-bot API)
-    if (method === 'GET' && path === '/api/status') {
-      const bots = botManager.listBots();
-      const primary = bots[0] || {};
-      sendJson(response, 200, {
-        connection: primary.connection || 'waiting',
-        bots: bots.length,
-      });
-      return;
-    }
-
-    if (!botId || !botManager.getBot(botId)) {
-      sendJson(response, 404, { error: 'Bot not found' });
-      return;
-    }
-
-    const bot = botManager.getBot(botId);
-
-    // Update bot config (role, displayName, number)
-    if ((method === 'PUT' || method === 'POST') && subPath === '') {
-      const body = await readBody(request);
-      botManager.updateBot(botId, body || {});
-      sendJson(response, 200, bot.getStatusSummary());
-      return;
-    }
-
-    // Remove bot
-    if (method === 'DELETE' && subPath === '') {
-      try {
-        await botManager.removeBot(botId);
-        sendJson(response, 200, { success: true });
-      } catch (error) {
-        sendJson(response, 400, { error: error.message });
-      }
-      return;
-    }
-
-    // --- Per-bot endpoints ---
-
-    if (method === 'GET' && subPath === '/status') {
-      sendJson(response, 200, {
-        connection: bot.state.connection,
-        qr: bot.state.qr,
-        botNumber: bot.state.botNumber,
-        displayName: bot.displayName,
-        role: bot.role,
-        number: bot.number,
-        active: bot.active,
-        capabilities: bot.capabilities,
-      });
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/activate') {
-      try {
-        await botManager.activateBot(botId);
-        sendJson(response, 200, bot.getStatusSummary());
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/deactivate') {
-      try {
-        await botManager.deactivateBot(botId);
-        sendJson(response, 200, bot.getStatusSummary());
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/logout') {
-      try {
-        await botManager.logoutBot(botId);
-        sendJson(response, 200, bot.getStatusSummary());
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/groups') {
-      sendJson(response, 200, bot.state.groups);
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/groups/refresh') {
-      if (bot.state.connection !== 'connected') {
-        sendJson(response, 503, { error: 'Bot not connected' });
-        return;
-      }
-      try {
-        await bot.refreshGroups();
-        sendJson(response, 200, bot.state.groups);
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/logs') {
-      sendJson(response, 200, bot.state.logs);
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/settings') {
-      sendJson(response, 200, bot.state.settings);
-      return;
-    }
-    if (method === 'POST' && subPath === '/settings') {
-      const body = await readBody(request);
-      if (!body) { sendJson(response, 400, { error: 'Invalid JSON' }); return; }
-      bot.updateSettings(body);
-      bot.addLog('settings_update', { details: 'Dashboard settings updated' });
-      sendJson(response, 200, bot.state.settings);
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/group-settings') {
-      sendJson(response, 200, bot.state.groupSettings);
-      return;
-    }
-    if (method === 'POST' && subPath === '/group-settings') {
-      const body = await readBody(request);
-      if (!body?.jid || typeof body.moderation !== 'boolean') {
-        sendJson(response, 400, { error: 'jid and moderation (boolean) required' });
-        return;
-      }
-      bot.updateGroupSetting(body.jid, body.moderation);
-      const groupName = bot.state.groups.find((g) => g.jid === body.jid)?.name || body.jid;
-      bot.addLog('group_toggled', {
-        group: groupName,
-        details: body.moderation ? 'Moderation enabled' : 'Moderation disabled',
-      });
-      sendJson(response, 200, bot.state.groupSettings);
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/instruction') {
-      if (bot.state.connection !== 'connected' || !bot.sock) {
-        sendJson(response, 503, { error: 'Bot not connected' });
-        return;
-      }
-      const body = await readBody(request);
-      if (!body?.message) {
-        sendJson(response, 400, { error: 'Message is required' });
-        return;
-      }
-      try {
-        const sent = await bot.sendInstruction(body.groupJid, body.message);
-        sendJson(response, 200, { sent });
-      } catch (error) {
-        bot.addLog('instruction_error', { error: error.message });
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/schedules') {
-      sendJson(response, 200, bot.state.schedules);
-      return;
-    }
-    if (method === 'POST' && subPath === '/schedules') {
-      const body = await readBody(request);
-      bot.updateSchedules(body || {});
-      bot.addLog('schedules_updated', { details: 'Schedule settings updated' });
-      sendJson(response, 200, bot.state.schedules);
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/rules') {
-      sendJson(response, 200, { rulesMessage: bot.state.rulesMessage });
-      return;
-    }
-    if (method === 'POST' && subPath === '/rules') {
-      const body = await readBody(request);
-      if (typeof body?.rulesMessage === 'string') bot.state.rulesMessage = body.rulesMessage;
-      if (body?.send) {
-        try {
-          const sent = await bot.sendRules(body.groupJid || 'all');
-          sendJson(response, 200, { sent });
-          return;
-        } catch (error) {
-          sendJson(response, 500, { error: error.message });
-          return;
-        }
-      }
-      sendJson(response, 200, { rulesMessage: bot.state.rulesMessage });
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/lock') {
-      const body = await readBody(request);
-      if (!body?.groupJid) { sendJson(response, 400, { error: 'groupJid required' }); return; }
-      try {
-        await bot.lockGroup(body.groupJid);
-        sendJson(response, 200, { success: true });
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-    if (method === 'POST' && subPath === '/unlock') {
-      const body = await readBody(request);
-      if (!body?.groupJid) { sendJson(response, 400, { error: 'groupJid required' }); return; }
-      try {
-        await bot.unlockGroup(body.groupJid);
-        sendJson(response, 200, { success: true });
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    if (method === 'GET' && subPath === '/quiz') {
-      sendJson(response, 200, bot.state.quiz);
-      return;
-    }
-    if (method === 'POST' && subPath === '/quiz') {
-      const body = await readBody(request);
-      bot.updateQuizSettings(body || {});
-      bot.addLog('quiz_settings_updated', { details: 'Quiz settings updated' });
-      sendJson(response, 200, bot.state.quiz);
-      return;
-    }
-
-    if (method === 'POST' && subPath === '/quiz/send') {
-      if (bot.state.connection !== 'connected' || !bot.sock) {
-        sendJson(response, 503, { error: 'Bot not connected' });
-        return;
-      }
-      const body = await readBody(request);
-      const groupJid = body?.groupJid || 'all';
-      try {
-        let count = 0;
-        if (groupJid === 'all') {
-          const adminGroups = bot.state.groups.filter((g) => g.isAdmin);
-          for (const g of adminGroups) { await bot.sendQuiz(g.jid); count++; }
-        } else {
-          await bot.sendQuiz(groupJid);
-          count = 1;
-        }
-        if (bot.quizState.quizzesSent >= 5) await bot.sendQuizResults();
-        sendJson(response, 200, { sent: count });
-      } catch (error) {
-        sendJson(response, 500, { error: error.message });
-      }
-      return;
-    }
-
-    sendJson(response, 404, { error: 'Not found' });
+  // --- API: Aggregate status (health-check) ---
+  app.get('/api/status', (req, res) => {
+    const bots = botManager.listBots();
+    const primary = bots[0] || {};
+    res.json({ connection: primary.connection || 'waiting', bots: bots.length });
   });
 
-  return { server };
+  // --- API: Bot management (all behind auth) ---
+  const botApi = express.Router();
+  botApi.use(requireAuth);
+
+  // List user's bots
+  botApi.get('/bots', async (req, res) => {
+    try {
+      const bots = await botManager.listUserBots(req.user.id);
+      res.json(bots);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Create a new bot
+  botApi.post('/bots', async (req, res) => {
+    const { phoneNumber, displayName, role } = req.body || {};
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+    try {
+      const bot = await botManager.createBot(req.user.id, { phoneNumber, displayName, role });
+      res.json(bot.getStatusSummary());
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Bot-scoped routes: /api/bots/:botId/...
+  botApi.get('/bots/:botId/status', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json({
+      connection: bot.state.connection,
+      qr: bot.state.qr,
+      botNumber: bot.state.botNumber,
+      displayName: bot.displayName,
+      role: bot.role,
+      number: bot.number,
+      active: bot.active,
+      capabilities: bot.capabilities,
+    });
+  });
+
+  botApi.put('/bots/:botId', async (req, res) => {
+    try {
+      const bot = await botManager.updateBot(req.params.botId, req.user.id, req.body || {});
+      res.json(bot.getStatusSummary());
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  botApi.delete('/bots/:botId', async (req, res) => {
+    try {
+      await botManager.deleteBot(req.params.botId, req.user.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  botApi.post('/bots/:botId/activate', async (req, res) => {
+    try {
+      await botManager.activateBot(req.params.botId, req.user.id);
+      const bot = botManager.getBot(req.params.botId);
+      res.json(bot.getStatusSummary());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.post('/bots/:botId/deactivate', async (req, res) => {
+    try {
+      await botManager.deactivateBot(req.params.botId, req.user.id);
+      const bot = botManager.getBot(req.params.botId);
+      res.json(bot.getStatusSummary());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.post('/bots/:botId/logout', async (req, res) => {
+    try {
+      await botManager.logoutBot(req.params.botId, req.user.id);
+      const bot = botManager.getBot(req.params.botId);
+      res.json(bot.getStatusSummary());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.get('/bots/:botId/groups', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json(bot.state.groups);
+  });
+
+  botApi.post('/bots/:botId/groups/refresh', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    if (bot.state.connection !== 'connected') return res.status(503).json({ error: 'Bot not connected' });
+    try {
+      await bot.refreshGroups();
+      res.json(bot.state.groups);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.get('/bots/:botId/logs', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json(bot.state.logs);
+  });
+
+  botApi.get('/bots/:botId/settings', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json(bot.state.settings);
+  });
+
+  botApi.post('/bots/:botId/settings', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    bot.updateSettings(req.body || {});
+    bot.addLog('settings_update', { details: 'Dashboard settings updated' });
+    res.json(bot.state.settings);
+  });
+
+  botApi.post('/bots/:botId/instruction', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    if (bot.state.connection !== 'connected' || !bot.sock) return res.status(503).json({ error: 'Bot not connected' });
+    const { message, groupJid } = req.body || {};
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+    try {
+      const sent = await bot.sendInstruction(groupJid, message);
+      res.json({ sent });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.get('/bots/:botId/schedules', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json(bot.state.schedules);
+  });
+
+  botApi.post('/bots/:botId/schedules', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    bot.updateSchedules(req.body || {});
+    bot.addLog('schedules_updated', { details: 'Schedule settings updated' });
+    res.json(bot.state.schedules);
+  });
+
+  botApi.post('/bots/:botId/lock', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid } = req.body || {};
+    if (!groupJid) return res.status(400).json({ error: 'groupJid required' });
+    try {
+      await bot.lockGroup(groupJid);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.post('/bots/:botId/unlock', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid } = req.body || {};
+    if (!groupJid) return res.status(400).json({ error: 'groupJid required' });
+    try {
+      await bot.unlockGroup(groupJid);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.get('/bots/:botId/quiz', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json(bot.state.quiz);
+  });
+
+  botApi.post('/bots/:botId/quiz', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    bot.updateQuizSettings(req.body || {});
+    bot.addLog('quiz_settings_updated', { details: 'Quiz settings updated' });
+    res.json(bot.state.quiz);
+  });
+
+  botApi.post('/bots/:botId/quiz/send', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    if (bot.state.connection !== 'connected' || !bot.sock) return res.status(503).json({ error: 'Bot not connected' });
+    const { groupJid } = req.body || {};
+    try {
+      let count = 0;
+      if (!groupJid || groupJid === 'all') {
+        const adminGroups = bot.state.groups.filter((g) => g.isAdmin);
+        for (const g of adminGroups) { await bot.sendQuiz(g.jid); count++; }
+      } else {
+        await bot.sendQuiz(groupJid);
+        count = 1;
+      }
+      res.json({ sent: count });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  botApi.get('/bots/:botId/group-settings', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    res.json(bot.state.groupSettings);
+  });
+
+  botApi.post('/bots/:botId/group-settings', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { jid, moderation } = req.body || {};
+    if (!jid || typeof moderation !== 'boolean') return res.status(400).json({ error: 'jid and moderation required' });
+    bot.updateGroupSetting(jid, moderation);
+    res.json(bot.state.groupSettings);
+  });
+
+  app.use('/api', botApi);
+
+  return app;
 }

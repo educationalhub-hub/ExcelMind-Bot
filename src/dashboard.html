@@ -1,888 +1,567 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>ExcelMind-Bot Dashboard</title>
-    <style>
-      :root {
-        --primary: #14754e; --bg: #f0f5f3; --card: #fff; --text: #18372c;
-        --muted: #52695e; --border: #dce8e1; --accent: #0d9668; --danger: #dc2626;
-        --radius: 16px;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
-        font: 16px/1.6 system-ui, -apple-system, sans-serif; padding: 20px;
-      }
-      .container { max-width: 900px; margin: 0 auto; }
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExcelMind-Bot — Dashboard</title>
+<style>
+:root{--primary:#14754e;--bg:#f0f5f3;--card:#fff;--text:#18372c;--muted:#52695e;--border:#dce8e1;--accent:#0d9668;--danger:#dc2626;--radius:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,sans-serif;padding:20px}
+.container{max-width:960px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:center;padding:8px 0 20px;gap:12px;flex-wrap:wrap}
+.header h1{font-size:24px;letter-spacing:-.02em}
+.header-right{display:flex;gap:12px;align-items:center}
+.user-badge{font-size:14px;color:var(--muted);background:var(--card);border:1px solid var(--border);padding:6px 14px;border-radius:20px}
+a.btn-link{color:var(--primary);text-decoration:none;font-weight:600;font-size:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.card h2{margin:0 0 16px;font-size:18px}
 
-      .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; margin-bottom: 8px; gap: 12px; }
-      .header h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
-      .bot-id { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
-      .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-      .s-connected { background: #d1fae5; color: #065f46; }
-      .s-connecting, .s-scan, .s-reconnecting { background: #fef3c7; color: #92400e; }
-      .s-error, .s-logged_out, .s-stopped { background: #fee2e2; color: #991b1b; }
-      .s-waiting { background: #e5e7eb; color: #374151; }
+/* Status badges */
+.badge{padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;display:inline-block}
+.s-connected{background:#d1fae5;color:#065f46}
+.s-connecting,.s-scan,.s-reconnecting{background:#fef3c7;color:#92400e}
+.s-error,.s-logged_out,.s-stopped{background:#fee2e2;color:#991b1b}
+.s-waiting{background:#e5e7eb;color:#374151}
 
-      .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-      .card h2 { margin: 0 0 16px; font-size: 18px; }
+/* Bot grid */
+.bot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.bot-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:box-shadow .2s,transform .1s}
+.bot-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
+.bot-card-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:8px}
+.bot-number{font-size:17px;font-weight:700}
+.bot-role{display:inline-block;padding:3px 10px;border-radius:6px;background:#e6f4ea;color:var(--primary);font-size:13px;font-weight:600;margin-bottom:8px}
+.bot-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 
-      .bot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-      .bot-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; cursor: pointer; transition: box-shadow .2s, transform .1s; }
-      .bot-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-2px); }
-      .bot-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-      .bot-number { font-size: 18px; font-weight: 700; }
-      .bot-card-role { display: inline-block; padding: 3px 10px; border-radius: 6px; background: #e6f4ea; color: var(--primary); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+/* QR */
+.qr-area{min-height:280px;display:grid;place-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}
+#qr-img{width:min(100%,320px);height:auto;display:block}
+.qr-placeholder{padding:20px;color:var(--muted)}
 
-      .qr-area { min-height: 280px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
-      #qr { width: min(100%, 320px); height: auto; display: block; }
-      [hidden] { display: none !important; }
-      .qr-placeholder { padding: 20px; color: var(--muted); }
-      ol { margin: 12px 0 0; padding-left: 24px; }
-      li { padding: 3px 0; }
+/* Forms */
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:15px;outline:none;transition:border-color .15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--primary)}
+textarea{resize:vertical;min-height:80px}
+.btn{padding:10px 20px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;border:none;transition:transform .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-outline{background:transparent;border:2px solid var(--primary);color:var(--primary)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:6px 14px;font-size:13px}
+[hidden]{display:none!important}
+.error{color:var(--danger);font-size:14px;margin:8px 0}
 
-      .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
-      .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }
-      .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
-      .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:var(--card);border-radius:var(--radius);padding:32px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto}
 
-      .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-      .section-head h2 { margin: 0; }
+/* Capabilities */
+.cap-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.cap-item{display:flex;align-items:center;gap:8px;font-size:14px}
+.cap-item input{width:auto}
 
-      .groups-table { width: 100%; }
-      .groups-table th, .groups-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
-      .groups-table th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-      .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
-      .badge-yes { background: #d1fae5; color: #065f46; }
-      .badge-no { background: #f3f4f6; color: #9ca3af; }
-      .lock-btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text); cursor: pointer; }
-      .lock-btn:hover { background: #f0f5f3; }
+/* Tabs in bot detail */
+.detail-tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0}
+.detail-tab{padding:8px 16px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-2px}
+.detail-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
 
-      .group-toggle { position: relative; width: 40px; height: 22px; appearance: none; background: #d1d5db; border-radius: 11px; cursor: pointer; transition: background .2s; flex-shrink: 0; }
-      .group-toggle:checked { background: var(--accent); }
-      .group-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: transform .2s; }
-      .group-toggle:checked::after { transform: translateX(18px); }
-      .group-toggle:disabled { opacity: .4; cursor: not-allowed; }
-      .group-row { transition: background .15s; }
-      .group-row.off { opacity: .6; }
+/* Activity log */
+.log-list{max-height:300px;overflow-y:auto}
+.log-entry{padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
+.log-time{color:var(--muted);font-size:12px}
 
-      .log-list { max-height: 300px; overflow-y: auto; }
-      .log-entry { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
-      .log-entry:last-child { border-bottom: none; }
-      .log-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-      .log-action { font-weight: 600; }
+/* Groups */
+.group-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.group-name{font-weight:600}
+.group-meta{font-size:13px;color:var(--muted)}
+.admin-badge{background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600}
 
-      .form-group { margin-bottom: 16px; }
-      .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
-      input[type="text"], input[type="time"], textarea, select {
-        width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; background: white;
-      }
-      textarea { resize: vertical; }
-      .form-row { display: flex; gap: 12px; }
-      .form-row .form-group { flex: 1; }
+/* Settings toggles */
+.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🤖 My Bots</h1>
+    <div class="header-right">
+      <span class="user-badge" id="user-email"></span>
+      <button class="btn btn-primary btn-sm" onclick="showCreateModal()">+ New Bot</button>
+      <a class="btn-link" href="/" onclick="logout()">Log out</a>
+    </div>
+  </div>
 
-      .toggle-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
-      .toggle-row label { font-size: 14px; }
-      .toggle { position: relative; width: 44px; height: 24px; appearance: none; background: #d1d5db; border-radius: 12px; cursor: pointer; transition: background .2s; flex-shrink: 0; }
-      .toggle:checked { background: var(--accent); }
-      .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform .2s; }
-      .toggle:checked::after { transform: translateX(20px); }
+  <!-- Bot list view -->
+  <div id="bot-list-view">
+    <div class="bot-grid" id="bot-grid">
+      <div class="qr-placeholder">Loading your bots...</div>
+    </div>
+  </div>
 
-      button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; transition: background .2s; }
-      button:hover { background: var(--accent); }
-      button.secondary { background: white; color: var(--primary); border: 1px solid var(--primary); padding: 6px 14px; font-size: 13px; }
-      button.secondary:hover { background: #f0f5f3; }
-      button.danger { background: white; color: var(--danger); border: 1px solid var(--danger); padding: 6px 14px; font-size: 13px; }
-      button.danger:hover { background: #fef2f2; }
-      button:disabled { opacity: .5; cursor: not-allowed; }
+  <!-- Bot detail view -->
+  <div id="bot-detail-view" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <button class="btn btn-outline btn-sm" onclick="showBotList()">← Back to bots</button>
+      <div id="detail-status"></div>
+    </div>
 
-      .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; font-weight: 600; z-index: 100; opacity: 0; transition: opacity .3s; }
-      .toast.show { opacity: 1; }
-      .toast.success { background: #d1fae5; color: #065f46; }
-      .toast.error { background: #fee2e2; color: #991b1b; }
+    <div class="detail-tabs">
+      <button class="detail-tab active" onclick="switchTab('qr')">QR & Status</button>
+      <button class="detail-tab" onclick="switchTab('groups')">Groups</button>
+      <button class="detail-tab" onclick="switchTab('capabilities')">Capabilities</button>
+      <button class="detail-tab" onclick="switchTab('settings')">Settings</button>
+      <button class="detail-tab" onclick="switchTab('schedules')">Schedules</button>
+      <button class="detail-tab" onclick="switchTab('quiz')">Quiz & Greeting</button>
+      <button class="detail-tab" onclick="switchTab('activity')">Activity</button>
+    </div>
 
-      .muted { color: var(--muted); font-size: 14px; }
-      .empty { color: var(--muted); padding: 20px 0; text-align: center; }
-
-      @media (max-width: 600px) {
-        .stats { grid-template-columns: 1fr; }
-        .header { flex-direction: column; gap: 8px; align-items: flex-start; }
-        .form-row { flex-direction: column; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <!-- ================= HOME VIEW ================= -->
-      <div id="home-view">
-        <header class="header">
-          <div>
-            <h1>🤖 ExcelMind-Bot Manager</h1>
-            <p class="bot-id">Select a bot to manage, or add a new one</p>
-          </div>
-        </header>
-        <div id="bot-cards" class="bot-grid">
-          <p class="empty">Loading bots…</p>
+    <!-- QR Tab -->
+    <div id="tab-qr" class="tab-content">
+      <div class="card">
+        <h2>Link WhatsApp</h2>
+        <div class="qr-area" id="qr-area">
+          <div class="qr-placeholder">Waiting for QR code...</div>
         </div>
-        <div class="card">
-          <h2>Add New Bot</h2>
-          <form id="add-bot-form">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="new-bot-number">Phone Number</label>
-                <input type="text" id="new-bot-number" placeholder="e.g., 2349114112326" required>
-              </div>
-              <div class="form-group">
-                <label for="new-bot-role">Role</label>
-                <select id="new-bot-role">
-                  <option>Moderator</option>
-                  <option>Guard</option>
-                  <option>Announcer</option>
-                  <option>Quiz</option>
-                  <option>Greeter</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="new-bot-name">Display Name (blank = keep current WhatsApp name)</label>
-              <input type="text" id="new-bot-name" placeholder="e.g., Bot">
-            </div>
-            <button type="submit">Add Bot</button>
-          </form>
-        </div>
-      </div>
-
-      <!-- ================= BOT DASHBOARD VIEW ================= -->
-      <div id="bot-view" hidden>
-        <header class="header">
-          <div>
-            <button class="secondary" id="back-btn">← Back</button>
-            <h1 id="bot-title" style="margin-top:8px;">📊 Bot Dashboard</h1>
-            <p id="bot-info" class="bot-id"></p>
-          </div>
-          <span id="status-badge" class="status-badge s-waiting">Waiting…</span>
-        </header>
-
-        <!-- Bot Configuration -->
-        <div class="card">
-          <h2>Bot Configuration</h2>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="bot-role">Role</label>
-              <select id="bot-role">
-                <option>Moderator</option>
-                <option>Guard</option>
-                <option>Announcer</option>
-                <option>Quiz</option>
-                <option>Greeter</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="bot-name">Display Name (blank = keep current name)</label>
-              <input type="text" id="bot-name" placeholder="e.g., Bot">
-            </div>
-          </div>
-          <label style="display:block;margin-bottom:6px;font-weight:600;font-size:14px;">Functions (what this bot is allowed to do)</label>
-          <div class="toggle-row">
-            <input type="checkbox" class="toggle" id="cap-moderation">
-            <label for="cap-moderation">🛡 Moderation — delete abusive words from non-admins</label>
-          </div>
-          <div class="toggle-row">
-            <input type="checkbox" class="toggle" id="cap-antiLink">
-            <label for="cap-antiLink">🔗 Link Deletion — delete links from non-admins</label>
-          </div>
-          <div class="toggle-row">
-            <input type="checkbox" class="toggle" id="cap-announcements">
-            <label for="cap-announcements">📢 Announcements — schedules, morning messages, broadcasts, group lock/unlock</label>
-          </div>
-          <div class="toggle-row">
-            <input type="checkbox" class="toggle" id="cap-quiz">
-            <label for="cap-quiz">📝 Quiz — auto-send quiz polls to groups, send results after 5 quizzes</label>
-          </div>
-          <div class="toggle-row">
-            <input type="checkbox" class="toggle" id="cap-greeter">
-            <label for="cap-greeter">👋 Greeter — welcome new members who join groups</label>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;">
-            <button id="save-config">Save Configuration</button>
-            <button class="secondary" id="start-stop-btn">⏸ Stop Bot</button>
-            <button class="danger" id="logout-btn">🚪 Logout</button>
-            <button class="danger" id="remove-bot-btn">Remove Bot</button>
-          </div>
-        </div>
-
-        <!-- QR Pairing -->
-        <div id="qr-section" class="card">
-          <h2>Connect with QR Scan</h2>
-          <div class="qr-area">
-            <img id="qr" alt="WhatsApp QR code" hidden>
-            <p id="qr-placeholder" class="qr-placeholder">Waiting for WhatsApp to generate a QR code…</p>
-          </div>
-          <p id="qr-status" class="muted">Connecting to WhatsApp…</p>
-          <ol>
-            <li>Open <strong>WhatsApp</strong> on your phone.</li>
-            <li>Go to <strong>Settings</strong> → <strong>Linked devices</strong>.</li>
-            <li>Tap <strong>Link a device</strong> and scan the code above.</li>
-          </ol>
-        </div>
-
-        <!-- Dashboard (connected) -->
-        <div id="dashboard" hidden>
-          <div class="stats">
-            <div class="stat-card"><div class="stat-value" id="stat-groups">0</div><div class="stat-label">Total Groups</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-admin">0</div><div class="stat-label">Admin In</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-actions">0</div><div class="stat-label">Actions Logged</div></div>
-          </div>
-
-          <!-- Groups -->
-          <div class="card">
-            <div class="section-head">
-              <h2>Groups</h2>
-              <button class="secondary" id="refresh-groups">↻ Refresh</button>
-            </div>
-            <div id="groups-container"><p class="muted">Loading groups…</p></div>
-          </div>
-
-          <!-- Schedules -->
-          <div class="card">
-            <h2>Group Schedule & Morning Message</h2>
-            <form id="schedules-form">
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="schedule-open">Open Time (unlock groups)</label>
-                  <input type="time" id="schedule-open">
-                </div>
-                <div class="form-group">
-                  <label for="schedule-close">Close Time (lock groups)</label>
-                  <input type="time" id="schedule-close">
-                </div>
-                <div class="form-group">
-                  <label for="schedule-morning">Morning Message Time</label>
-                  <input type="time" id="schedule-morning">
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="morning-message">Morning Message</label>
-                <textarea id="morning-message" rows="2" placeholder="Message to send when the group opens…"></textarea>
-              </div>
-              <button type="submit">Save Schedule</button>
-            </form>
-          </div>
-
-          <!-- Quiz & Greeter -->
-          <div class="card">
-            <h2>Quiz & Greeter Settings</h2>
-            <form id="quiz-form">
-              <div class="form-row">
-                <div class="form-group">
-                  <label for="quiz-time">Daily Quiz Time (when quiz polls are auto-sent)</label>
-                  <input type="time" id="quiz-time">
-                </div>
-                <div class="form-group">
-                  <label for="quiz-group">Send Quiz Now To</label>
-                  <select id="quiz-group"><option value="all">All admin groups</option></select>
-                </div>
-              </div>
-              <div class="form-group">
-                <label for="welcome-message">Greeter Welcome Message (sent to new members)</label>
-                <textarea id="welcome-message" rows="2" placeholder="Welcome message for new group members…"></textarea>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <button type="submit" id="save-quiz-btn">Save Quiz Settings</button>
-                <button type="button" id="send-quiz-btn" class="secondary">📝 Send Quiz Now</button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Rules & Regulations -->
-          <div class="card">
-            <h2>Rules & Regulations</h2>
-            <form id="rules-form">
-              <div class="form-group">
-                <label for="rules-message">Rules Message</label>
-                <textarea id="rules-message" rows="6" placeholder="Group rules and regulations…"></textarea>
-              </div>
-              <div class="form-group">
-                <label for="rules-group">Send Rules To</label>
-                <select id="rules-group">
-                  <option value="all">All groups where bot is admin</option>
-                </select>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <button type="submit" id="save-rules-btn">Save Rules</button>
-                <button type="button" id="send-rules-btn" class="secondary">Send Rules to Group(s)</button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Activity -->
-          <div class="card">
-            <h2>Recent Activity</h2>
-            <div class="log-list" id="activity-container"><p class="empty">No activity yet.</p></div>
-          </div>
-
-          <!-- Settings -->
-          <div class="card">
-            <h2>Moderation Settings</h2>
-            <form id="settings-form">
-              <div class="toggle-row">
-                <input type="checkbox" class="toggle" id="anti-link" checked>
-                <label for="anti-link">Anti-Link — delete links from non-admins</label>
-              </div>
-              <div class="toggle-row">
-                <input type="checkbox" class="toggle" id="anti-abuse" checked>
-                <label for="anti-abuse">Anti-Abuse — delete abusive words from non-admins</label>
-              </div>
-              <div class="form-group">
-                <label for="abusive-words">Abusive words (comma-separated)</label>
-                <textarea id="abusive-words" rows="3" placeholder="fuck, shit, idiot…"></textarea>
-              </div>
-              <button type="submit">Save Settings</button>
-            </form>
-          </div>
-
-          <!-- Send Instruction -->
-          <div class="card">
-            <h2>Send Instruction</h2>
-            <form id="instruction-form">
-              <div class="form-group">
-                <label for="instruction-group">Send to</label>
-                <select id="instruction-group"><option value="all">All groups where bot is admin</option></select>
-              </div>
-              <div class="form-group">
-                <label for="instruction-message">Message</label>
-                <textarea id="instruction-message" rows="3" placeholder="Type a message to send…"></textarea>
-              </div>
-              <button type="submit" id="send-instruction">Send</button>
-            </form>
-          </div>
+        <ol style="margin:12px 0 0;padding-left:24px;color:var(--muted);font-size:14px">
+          <li>Open WhatsApp on your phone</li>
+          <li>Go to Settings → Linked Devices</li>
+          <li>Tap "Link a Device" and scan the QR code above</li>
+        </ol>
+        <div class="bot-actions" style="margin-top:16px">
+          <button class="btn btn-primary btn-sm" onclick="refreshBot()" id="refresh-btn">Refresh</button>
+          <button class="btn btn-outline btn-sm" onclick="activateBot()" id="activate-btn">Activate</button>
+          <button class="btn btn-outline btn-sm" onclick="deactivateBot()" id="deactivate-btn">Deactivate</button>
+          <button class="btn btn-danger btn-sm" onclick="logoutBot()">Logout & Re-pair</button>
         </div>
       </div>
     </div>
 
-    <div id="toast" class="toast"></div>
+    <!-- Groups Tab -->
+    <div id="tab-groups" class="tab-content" hidden>
+      <div class="card">
+        <h2>Groups <button class="btn btn-outline btn-sm" style="float:right" onclick="refreshGroups()">↻ Refresh</button></h2>
+        <div id="group-list"><div class="qr-placeholder">No groups loaded. Make sure the bot is connected and is an admin in your groups.</div></div>
+      </div>
+    </div>
 
-    <script>
-      const ROLES = ['Moderator', 'Guard', 'Announcer', 'Quiz', 'Greeter'];
-      const statusLabels = {
-        waiting: 'Waiting…', connecting: 'Connecting…', scan: 'Ready to scan',
-        connected: '● Connected', reconnecting: 'Reconnecting…',
-        logged_out: 'Logged out', error: 'Error', stopped: '⏸ Stopped',
-      };
-      const qrMessages = {
-        waiting: 'Waiting for a fresh QR code…', connecting: 'Connecting to WhatsApp…',
-        scan: 'Ready to scan · QR refreshes automatically', connected: '✓ WhatsApp connected',
-        reconnecting: 'Reconnecting… a fresh QR will appear shortly.',
-        logged_out: 'Logged out. Activate the bot to link again.', error: 'Unable to generate a QR code.',
-        stopped: 'Bot is stopped. Press Start to activate.',
-      };
-      const actionLabels = {
-        link_deleted: '🗑️ Link deleted', abuse_deleted: '🗑️ Abuse deleted',
-        user_muted: '🔇 User muted', user_unmuted: '🔊 User unmuted',
-        instruction_sent: '📤 Instruction sent', instruction_broadcast: '📢 Broadcast sent',
-        instruction_error: '❌ Instruction failed', settings_update: '⚙️ Settings updated',
-        bot_connected: '✅ Bot connected', groups_refreshed: '🔄 Groups refreshed',
-        group_toggled: '🔀 Group moderation toggled', profile_name_set: '🏷️ Profile name set',
-        morning_message: '🌅 Morning message sent', groups_opened: '🔓 Groups opened',
-        groups_closed: '🔒 Groups closed', group_locked: '🔒 Group locked',
-        group_unlocked: '🔓 Group unlocked', schedules_updated: '⏰ Schedules updated',
-        quiz_sent: '📝 Quiz sent', quiz_results: '🏆 Quiz results sent',
-        quiz_settings_updated: '📝 Quiz settings updated', member_welcomed: '👋 Member welcomed',
-        bot_logout: '🚪 Bot logged out', bot_started: '▶️ Bot started', bot_stopped: '⏸️ Bot stopped',
-      };
+    <!-- Capabilities Tab -->
+    <div id="tab-capabilities" class="tab-content" hidden>
+      <div class="card">
+        <h2>Bot Capabilities</h2>
+        <div class="cap-grid" id="cap-grid"></div>
+        <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="saveCapabilities()">Save</button>
+      </div>
+    </div>
 
-      let currentBotId = null;
-      let currentSettings = null;
-      let currentGroupSettings = {};
-      let pollTimer = null;
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="tab-content" hidden>
+      <div class="card">
+        <h2>Moderation Settings</h2>
+        <div class="form-group">
+          <label><input type="checkbox" id="set-antiLink" style="width:auto;margin-right:8px"> Anti-link (delete links from non-admins)</label>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="set-antiAbuse" style="width:auto;margin-right:8px"> Anti-abuse (delete offensive words)</label>
+        </div>
+        <div class="form-group">
+          <label>Abusive words (comma-separated)</label>
+          <textarea id="set-abusiveWords" placeholder="fuck, shit, bastard..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
+      </div>
+      <div class="card">
+        <h2>Bot Info</h2>
+        <div class="form-group"><label>Display Name</label><input type="text" id="info-displayName" placeholder="e.g. Quiz Master"></div>
+        <div class="form-group"><label>Role</label><select id="info-role"><option>Moderator</option><option>Guard</option><option>Announcer</option><option>Quiz</option><option>Greeter</option></select></div>
+        <button class="btn btn-primary btn-sm" onclick="updateBotInfo()">Save</button>
+      </div>
+    </div>
 
-      // --- Helpers ---
-      function escapeHtml(text) { const d = document.createElement('div'); d.textContent = String(text || ''); return d.innerHTML; }
-      function showToast(msg, type = 'success') {
-        const t = document.getElementById('toast');
-        t.textContent = msg; t.className = 'toast ' + type + ' show';
-        setTimeout(() => t.classList.remove('show'), 3000);
-      }
-      function api(path, opts) { return fetch('/api/bots/' + currentBotId + path, opts); }
+    <!-- Schedules Tab -->
+    <div id="tab-schedules" class="tab-content" hidden>
+      <div class="card">
+        <h2>Group Schedules</h2>
+        <div class="form-group"><label>Open Time (groups unlocked)</label><input type="time" id="sched-openTime"></div>
+        <div class="form-group"><label>Close Time (groups locked)</label><input type="time" id="sched-closeTime"></div>
+        <div class="form-group"><label>Morning Message Time</label><input type="time" id="sched-morningTime"></div>
+        <div class="form-group"><label>Morning Message</label><textarea id="sched-morningMessage" placeholder="Good morning everyone!"></textarea></div>
+        <button class="btn btn-primary btn-sm" onclick="saveSchedules()">Save Schedules</button>
+      </div>
+    </div>
 
-      // --- Routing ---
-      function getBotIdFromHash() { return window.location.hash.slice(1) || null; }
-      function navigate(botId) { window.location.hash = botId || ''; }
+    <!-- Quiz Tab -->
+    <div id="tab-quiz" class="tab-content" hidden>
+      <div class="card">
+        <h2>Quiz & Greeting</h2>
+        <div class="form-group"><label>Daily Quiz Time</label><input type="time" id="quiz-time"></div>
+        <div class="form-group"><label>Welcome Message (for new members)</label><textarea id="quiz-welcome" placeholder="Welcome to the group!"></textarea></div>
+        <button class="btn btn-primary btn-sm" onclick="saveQuiz()">Save</button>
+        <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+        <button class="btn btn-outline btn-sm" onclick="sendQuizNow()">Send Quiz Now</button>
+      </div>
+    </div>
 
-      window.addEventListener('hashchange', () => {
-        const id = getBotIdFromHash();
-        if (id) showBotView(id);
-        else showHome();
-      });
+    <!-- Activity Tab -->
+    <div id="tab-activity" class="tab-content" hidden>
+      <div class="card">
+        <h2>Activity Log</h2>
+        <div class="log-list" id="log-list"><div class="qr-placeholder">No activity yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
 
-      // --- Home view ---
-      async function showHome() {
-        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-        document.getElementById('home-view').hidden = false;
-        document.getElementById('bot-view').hidden = true;
-        try {
-          const res = await fetch('/api/bots', { cache: 'no-store' });
-          const bots = await res.json();
-          renderBotCards(bots);
-        } catch { document.getElementById('bot-cards').innerHTML = '<p class="empty">Failed to load bots.</p>'; }
-      }
+<!-- Create Bot Modal -->
+<div class="modal-overlay" id="create-modal" hidden onclick="if(event.target===this)hideCreateModal()">
+  <div class="modal">
+    <h2 style="margin-bottom:20px">Create New Bot</h2>
+    <div id="create-error" class="error" hidden></div>
+    <div class="form-group">
+      <label>Phone Number (with country code, no +)</label>
+      <input type="text" id="new-phone" placeholder="2349114112326">
+    </div>
+    <div class="form-group">
+      <label>Display Name (optional)</label>
+      <input type="text" id="new-name" placeholder="e.g. Quiz Master">
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select id="new-role">
+        <option value="Moderator">Moderator (all features)</option>
+        <option value="Guard">Guard (anti-link only)</option>
+        <option value="Announcer">Announcer (schedules only)</option>
+        <option value="Quiz">Quiz (quiz polls)</option>
+        <option value="Greeter">Greeter (welcome new members)</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button class="btn btn-outline" onclick="hideCreateModal()" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" onclick="createBot()" style="flex:1" id="create-btn">Create Bot</button>
+    </div>
+  </div>
+</div>
 
-      function renderBotCards(bots) {
-        const c = document.getElementById('bot-cards');
-        if (!bots.length) { c.innerHTML = '<p class="empty">No bots yet. Add one below.</p>'; return; }
-        const capLabels = { moderation: '🛡 Anti-Abuse', antiLink: '🔗 Link Delete', announcements: '📢 Announce', quiz: '📝 Quiz', greeter: '👋 Greeter' };
-        c.innerHTML = bots.map(b => {
-          const cls = 's-' + b.connection;
-          const label = statusLabels[b.connection] || b.connection;
-          let html = '<div class="bot-card" data-id="' + b.id + '">';
-          html += '<div class="bot-card-header"><span class="bot-number">+' + b.number + '</span>';
-          html += '<span class="status-badge ' + cls + '">' + label + '</span></div>';
-          if (b.active === false) html += '<div class="bot-card-role" style="background:#fee2e2;color:#991b1b;">⏸ Stopped</div>';
-          else html += '<div class="bot-card-role">' + escapeHtml(b.role) + '</div>';
-          const caps = Object.entries(b.capabilities || {}).filter(([,v]) => v).map(([k]) => capLabels[k] || k);
-          if (caps.length) html += '<div class="muted">' + caps.join(' · ') + '</div>';
-          if (b.displayName) html += '<div class="muted">Display: ' + escapeHtml(b.displayName) + '</div>';
-          if (b.botNumber) html += '<div class="muted">Connected: ' + escapeHtml(b.botNumber.split('@')[0]) + '</div>';
-          html += '</div>';
-          return html;
-        }).join('');
-        c.querySelectorAll('.bot-card').forEach(card => {
-          card.addEventListener('click', () => navigate(card.dataset.id));
-        });
-      }
+<script>
+let currentBotId = null;
+let pollTimer = null;
+let bots = [];
 
-      // Add bot form
-      document.getElementById('add-bot-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const number = document.getElementById('new-bot-number').value.replace(/\D/g, '');
-        const role = document.getElementById('new-bot-role').value;
-        const displayName = document.getElementById('new-bot-name').value.trim() || null;
-        if (!number) { showToast('Enter a phone number', 'error'); return; }
-        try {
-          const res = await fetch('/api/bots', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number, role, displayName }),
-          });
-          if (res.ok) {
-            const bot = await res.json();
-            showToast('Bot added — scan QR to connect');
-            document.getElementById('new-bot-number').value = '';
-            document.getElementById('new-bot-name').value = '';
-            navigate(bot.id);
-          } else {
-            const err = await res.json();
-            showToast(err.error || 'Failed to add', 'error');
-          }
-        } catch { showToast('Network error', 'error'); }
-      });
+// --- Auth check ---
+async function checkAuth() {
+  try {
+    const res = await fetch('/api/auth/me');
+    if (!res.ok) { window.location.href = '/login'; return; }
+    const data = await res.json();
+    document.getElementById('user-email').textContent = data.user.email;
+    loadBots();
+  } catch { window.location.href = '/login'; }
+}
 
-      // --- Bot dashboard view ---
-      async function showBotView(botId) {
-        currentBotId = botId;
-        currentSettings = null;
-        document.getElementById('home-view').hidden = true;
-        document.getElementById('bot-view').hidden = false;
-        pollBot();
-      }
+// --- Bot list ---
+async function loadBots() {
+  try {
+    const res = await fetch('/api/bots');
+    bots = await res.json();
+    renderBotGrid();
+  } catch (e) {
+    document.getElementById('bot-grid').innerHTML = '<div class="qr-placeholder">Failed to load bots.</div>';
+  }
+}
 
-      let currentActive = true;
-      function setStatus(status) {
-        const badge = document.getElementById('status-badge');
-        badge.textContent = statusLabels[status.connection] || status.connection;
-        badge.className = 'status-badge s-' + status.connection;
-        const connected = status.connection === 'connected';
-        const stopped = status.connection === 'stopped' || status.active === false;
-        currentActive = status.active !== false;
-        document.getElementById('qr-section').hidden = connected || stopped;
-        document.getElementById('dashboard').hidden = !connected;
+function renderBotGrid() {
+  const grid = document.getElementById('bot-grid');
+  if (!bots.length) {
+    grid.innerHTML = '<div class="card" style="text-align:center;padding:40px"><p style="color:var(--muted);margin-bottom:16px">You have no bots yet.</p><button class="btn btn-primary" onclick="showCreateModal()">+ Create your first bot</button></div>';
+    return;
+  }
+  grid.innerHTML = bots.map(b => {
+    const conn = b.connection || 'stopped';
+    const label = {connected:'Connected',connecting:'Connecting',scan:'Scan QR',reconnecting:'Reconnecting',logged_out:'Logged out',stopped:'Stopped',waiting:'Waiting',error:'Error'}[conn] || conn;
+    return `<div class="bot-card" onclick="openBot('${b.id}')">
+      <div class="bot-card-header">
+        <div>
+          <div class="bot-number">${b.displayName || b.phoneNumber || 'Unnamed Bot'}</div>
+          <span class="bot-role">${b.role}</span>
+        </div>
+        <span class="badge s-${conn}">${label}</span>
+      </div>
+      ${b.phoneNumber ? `<div style="font-size:13px;color:var(--muted)">+${b.phoneNumber}</div>` : ''}
+      ${b.botNumber ? `<div style="font-size:13px;color:var(--accent)">Connected: +${b.botNumber.split('@')[0].split(':')[0]}</div>` : ''}
+    </div>`;
+  }).join('');
+}
 
-        const info = document.getElementById('bot-info');
-        info.textContent = '+' + status.number + ' · ' + (status.role || 'Moderator');
-        if (status.displayName) info.textContent += ' · Display: ' + status.displayName;
-        if (status.botNumber) info.textContent += ' · Connected: ' + status.botNumber.split('@')[0];
+// --- Bot detail ---
+async function openBot(botId) {
+  currentBotId = botId;
+  document.getElementById('bot-list-view').hidden = true;
+  document.getElementById('bot-detail-view').hidden = false;
+  switchTab('qr');
+  await refreshBot();
+  startPolling();
+}
 
-        document.getElementById('bot-title').textContent = '📊 +' + status.number;
+function showBotList() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  currentBotId = null;
+  document.getElementById('bot-detail-view').hidden = true;
+  document.getElementById('bot-list-view').hidden = false;
+  loadBots();
+}
 
-        // Set config form values
-        document.getElementById('bot-role').value = status.role || 'Moderator';
-        document.getElementById('bot-name').value = status.displayName || '';
-        // Set capability checkboxes
-        const caps = status.capabilities || {};
-        document.getElementById('cap-moderation').checked = !!caps.moderation;
-        document.getElementById('cap-antiLink').checked = !!caps.antiLink;
-        document.getElementById('cap-announcements').checked = !!caps.announcements;
-        document.getElementById('cap-quiz').checked = !!caps.quiz;
-        document.getElementById('cap-greeter').checked = !!caps.greeter;
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.hidden = true);
+  document.getElementById('tab-' + tab).hidden = false;
+  document.querySelectorAll('.detail-tab').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  if (tab === 'groups') loadGroups();
+  if (tab === 'capabilities') loadCapabilities();
+  if (tab === 'settings') loadSettings();
+  if (tab === 'schedules') loadSchedules();
+  if (tab === 'quiz') loadQuiz();
+  if (tab === 'activity') loadLogs();
+}
 
-        // Update start/stop button
-        const ssBtn = document.getElementById('start-stop-btn');
-        if (currentActive) {
-          ssBtn.textContent = '⏸ Stop Bot';
-          ssBtn.className = 'secondary';
-        } else {
-          ssBtn.textContent = '▶ Start Bot';
-          ssBtn.className = '';
-          ssBtn.style.background = 'var(--primary)';
-        }
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(refreshBot, 3000);
+}
 
-        if (stopped) {
-          document.getElementById('qr-section').hidden = true;
-          const badge = document.getElementById('status-badge');
-          badge.textContent = '⏸ Stopped';
-          badge.className = 'status-badge s-stopped';
-        }
+async function refreshBot() {
+  if (!currentBotId) return;
+  try {
+    const res = await fetch(`/api/bots/${currentBotId}/status`);
+    if (!res.ok) return;
+    const data = await res.json();
+    updateStatusUI(data);
+  } catch {}
+}
 
-        if (!connected && !stopped) {
-          const qs = document.getElementById('qr-status');
-          qs.textContent = qrMessages[status.connection] || qrMessages.waiting;
-          const qr = document.getElementById('qr');
-          const ph = document.getElementById('qr-placeholder');
-          if (status.qr) {
-            qr.hidden = false; ph.hidden = true;
-            if (qr.src !== status.qr) qr.src = status.qr;
-          } else {
-            qr.hidden = true; ph.hidden = false;
-            ph.textContent = qrMessages[status.connection] || qrMessages.waiting;
-          }
-        }
-      }
+function updateStatusUI(data) {
+  const conn = data.connection;
+  const label = {connected:'✅ Connected',connecting:'🔄 Connecting...',scan:'📱 Scan QR',reconnecting:'🔄 Reconnecting...',logged_out:'🚪 Logged out',stopped:'⏸️ Stopped',waiting:'⏳ Waiting',error:'❌ Error'}[conn] || conn;
+  document.getElementById('detail-status').innerHTML = `<span class="badge s-${conn}">${label}</span>`;
 
-      function renderGroups(groups) {
-        const c = document.getElementById('groups-container');
-        if (!groups.length) { c.innerHTML = '<p class="empty">No groups found. Make sure the bot is added to groups.</p>'; return; }
-        document.getElementById('stat-groups').textContent = groups.length;
-        document.getElementById('stat-admin').textContent = groups.filter(g => g.isAdmin).length;
-        let html = '<table class="groups-table"><thead><tr><th>Group</th><th>Members</th><th>Admin?</th><th>Moderation</th><th>Lock</th></tr></thead><tbody>';
-        for (const g of groups) {
-          const mod = currentGroupSettings[g.jid]?.moderation !== false;
-          html += '<tr class="group-row' + (g.isAdmin && !mod ? ' off' : '') + '">';
-          html += '<td>' + escapeHtml(g.name) + '</td><td>' + g.participants + '</td><td>';
-          html += g.isAdmin ? '<span class="badge badge-yes">✓ Admin</span>' : '<span class="badge badge-no">Member</span>';
-          html += '</td><td>';
-          html += g.isAdmin ? '<input type="checkbox" class="group-toggle" data-jid="' + g.jid + '"' + (mod ? ' checked' : '') + '>' : '<span class="muted">—</span>';
-          html += '</td><td>';
-          if (g.isAdmin) html += '<button class="lock-btn" data-jid="' + g.jid + '" data-action="lock">🔒 Lock</button> <button class="lock-btn" data-jid="' + g.jid + '" data-action="unlock">🔓 Unlock</button>';
-          else html += '<span class="muted">—</span>';
-          html += '</td></tr>';
-        }
-        html += '</tbody></table>';
-        c.innerHTML = html;
+  const qrArea = document.getElementById('qr-area');
+  if (data.qr) {
+    qrArea.innerHTML = `<img id="qr-img" src="${data.qr}" alt="QR Code">`;
+  } else if (conn === 'connected') {
+    qrArea.innerHTML = `<div class="qr-placeholder">✅ Bot is connected as +${(data.botNumber||'').split('@')[0].split(':')[0]}<br>No QR needed.</div>`;
+  } else if (conn === 'stopped') {
+    qrArea.innerHTML = `<div class="qr-placeholder">⏸️ Bot is deactivated. Click Activate to start.</div>`;
+  } else {
+    qrArea.innerHTML = `<div class="qr-placeholder">Waiting for QR code... The bot will generate one shortly.</div>`;
+  }
 
-        // Wire toggles
-        c.querySelectorAll('.group-toggle').forEach(t => {
-          t.addEventListener('change', async (e) => {
-            const jid = e.target.dataset.jid;
-            const moderation = e.target.checked;
-            e.target.disabled = true;
-            try {
-              const res = await api('/group-settings', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ jid, moderation }),
-              });
-              if (res.ok) {
-                currentGroupSettings = await res.json();
-                const row = e.target.closest('.group-row');
-                if (row) row.classList.toggle('off', !moderation);
-                showToast(moderation ? 'Moderation ON' : 'Moderation OFF');
-              } else { e.target.checked = !moderation; showToast('Failed', 'error'); }
-            } catch { e.target.checked = !moderation; showToast('Network error', 'error'); }
-            e.target.disabled = false;
-          });
-        });
+  // Show/hide action buttons
+  document.getElementById('activate-btn').hidden = data.active;
+  document.getElementById('deactivate-btn').hidden = !data.active;
+}
 
-        // Wire lock/unlock
-        c.querySelectorAll('.lock-btn').forEach(b => {
-          b.addEventListener('click', async (e) => {
-            const jid = e.target.dataset.jid;
-            const action = e.target.dataset.action;
-            try {
-              const res = await api('/' + action, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ groupJid: jid }),
-              });
-              showToast(res.ok ? (action === 'lock' ? 'Group locked' : 'Group unlocked') : 'Failed', res.ok ? 'success' : 'error');
-            } catch { showToast('Network error', 'error'); }
-          });
-        });
+async function activateBot() {
+  await fetch(`/api/bots/${currentBotId}/activate`, { method: 'POST' });
+  refreshBot();
+}
+async function deactivateBot() {
+  await fetch(`/api/bots/${currentBotId}/deactivate`, { method: 'POST' });
+  refreshBot();
+}
+async function logoutBot() {
+  if (!confirm('Logout and clear WhatsApp session? You will need to scan a new QR code.')) return;
+  await fetch(`/api/bots/${currentBotId}/logout`, { method: 'POST' });
+  refreshBot();
+}
 
-        // Populate dropdowns
-        const populateSelect = (selId, currentValue) => {
-          const sel = document.getElementById(selId);
-          sel.innerHTML = '<option value="all">All admin groups</option>';
-          for (const g of groups) if (g.isAdmin) sel.innerHTML += '<option value="' + g.jid + '">' + escapeHtml(g.name) + '</option>';
-          sel.value = currentValue;
-        };
-        populateSelect('instruction-group', document.getElementById('instruction-group').value);
-        populateSelect('rules-group', document.getElementById('rules-group').value);
-      }
+// --- Groups ---
+async function loadGroups() {
+  try {
+    const res = await fetch(`/api/bots/${currentBotId}/groups`);
+    const groups = await res.json();
+    if (!groups.length) {
+      document.getElementById('group-list').innerHTML = '<div class="qr-placeholder">No groups found. Make sure the bot is connected.</div>';
+      return;
+    }
+    document.getElementById('group-list').innerHTML = groups.map(g => `
+      <div class="group-item">
+        <div>
+          <div class="group-name">${g.name}</div>
+          <div class="group-meta">${g.participants} members ${g.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}</div>
+        </div>
+        ${g.isAdmin ? `<button class="btn btn-outline btn-sm" onclick="toggleLock('${g.jid}')">Lock/Unlock</button>` : ''}
+      </div>
+    `).join('');
+  } catch {}
+}
+async function refreshGroups() {
+  await fetch(`/api/bots/${currentBotId}/groups/refresh`, { method: 'POST' });
+  loadGroups();
+}
+async function toggleLock(jid) {
+  // Simple toggle — could track state but keeping simple
+  if (confirm('Lock this group (admins only)?')) {
+    await fetch(`/api/bots/${currentBotId}/lock`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({groupJid: jid}) });
+  } else {
+    await fetch(`/api/bots/${currentBotId}/unlock`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({groupJid: jid}) });
+  }
+}
 
-      function renderLogs(logs) {
-        const c = document.getElementById('activity-container');
-        document.getElementById('stat-actions').textContent = logs.length;
-        if (!logs.length) { c.innerHTML = '<p class="empty">No activity yet.</p>'; return; }
-        c.innerHTML = logs.slice(0, 50).map(log => {
-          const time = new Date(log.timestamp).toLocaleTimeString();
-          const label = actionLabels[log.action] || log.action;
-          let html = '<div class="log-entry"><span class="log-action">' + label + '</span>';
-          if (log.group) html += ' · ' + escapeHtml(log.group);
-          if (log.sender) html += ' · from ' + escapeHtml(log.sender.split('@')[0]);
-          html += '<div class="log-meta">' + time;
-          if (log.content) html += ' · "' + escapeHtml(log.content) + '"';
-          if (log.details) html += ' · ' + escapeHtml(log.details);
-          if (log.error) html += ' · ' + escapeHtml(log.error);
-          html += '</div></div>';
-          return html;
-        }).join('');
-      }
+// --- Capabilities ---
+async function loadCapabilities() {
+  const res = await fetch(`/api/bots/${currentBotId}/status`);
+  const data = await res.json();
+  const caps = data.capabilities || {};
+  const items = [
+    ['moderation', 'Moderation (anti-abuse)'],
+    ['antiLink', 'Anti-Link'],
+    ['announcements', 'Announcements & Schedules'],
+    ['quiz', 'Quiz System'],
+    ['greeter', 'Greeter (welcome new members)'],
+  ];
+  document.getElementById('cap-grid').innerHTML = items.map(([key, label]) =>
+    `<div class="cap-item"><input type="checkbox" id="cap-${key}" ${caps[key] ? 'checked' : ''}><label for="cap-${key}">${label}</label></div>`
+  ).join('');
+}
+async function saveCapabilities() {
+  const caps = {};
+  ['moderation','antiLink','announcements','quiz','greeter'].forEach(k => {
+    caps[k] = document.getElementById('cap-' + k).checked;
+  });
+  await fetch(`/api/bots/${currentBotId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({capabilities: caps}) });
+  alert('Capabilities saved!');
+}
 
-      function renderSettings(s) {
-        currentSettings = s;
-        document.getElementById('anti-link').checked = s.antiLink;
-        document.getElementById('anti-abuse').checked = s.antiAbuse;
-        document.getElementById('abusive-words').value = s.abusiveWords.join(', ');
-      }
+// --- Settings ---
+async function loadSettings() {
+  const [statusRes, schedRes] = await Promise.all([
+    fetch(`/api/bots/${currentBotId}/status`),
+    fetch(`/api/bots/${currentBotId}/schedules`),
+  ]);
+  const status = await statusRes.json();
+  // settings are loaded from the bot's state settings endpoint
+  const settingsRes = await fetch(`/api/bots/${currentBotId}/settings`);
+  const settings = await settingsRes.json();
+  document.getElementById('set-antiLink').checked = settings.antiLink;
+  document.getElementById('set-antiAbuse').checked = settings.antiAbuse;
+  document.getElementById('set-abusiveWords').value = (settings.abusiveWords || []).join(', ');
+  document.getElementById('info-displayName').value = status.displayName || '';
+  document.getElementById('info-role').value = status.role || 'Moderator';
+}
+async function saveSettings() {
+  const settings = {
+    antiLink: document.getElementById('set-antiLink').checked,
+    antiAbuse: document.getElementById('set-antiAbuse').checked,
+    abusiveWords: document.getElementById('set-abusiveWords').value.split(',').map(w => w.trim()).filter(Boolean),
+  };
+  await fetch(`/api/bots/${currentBotId}/settings`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(settings) });
+  alert('Settings saved!');
+}
+async function updateBotInfo() {
+  const updates = {
+    displayName: document.getElementById('info-displayName').value,
+    role: document.getElementById('info-role').value,
+  };
+  await fetch(`/api/bots/${currentBotId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updates) });
+  alert('Bot info saved!');
+}
 
-      function renderSchedules(s) {
-        document.getElementById('schedule-open').value = s.openTime || '';
-        document.getElementById('schedule-close').value = s.closeTime || '';
-        document.getElementById('schedule-morning').value = s.morningTime || '';
-        document.getElementById('morning-message').value = s.morningMessage || '';
-      }
+// --- Schedules ---
+async function loadSchedules() {
+  const res = await fetch(`/api/bots/${currentBotId}/schedules`);
+  const s = await res.json();
+  document.getElementById('sched-openTime').value = s.openTime || '08:00';
+  document.getElementById('sched-closeTime').value = s.closeTime || '22:00';
+  document.getElementById('sched-morningTime').value = s.morningTime || '07:30';
+  document.getElementById('sched-morningMessage').value = s.morningMessage || '';
+}
+async function saveSchedules() {
+  const s = {
+    openTime: document.getElementById('sched-openTime').value,
+    closeTime: document.getElementById('sched-closeTime').value,
+    morningTime: document.getElementById('sched-morningTime').value,
+    morningMessage: document.getElementById('sched-morningMessage').value,
+  };
+  await fetch(`/api/bots/${currentBotId}/schedules`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(s) });
+  alert('Schedules saved!');
+}
 
-      function renderRules(r) {
-        document.getElementById('rules-message').value = r.rulesMessage || '';
-      }
+// --- Quiz ---
+async function loadQuiz() {
+  const res = await fetch(`/api/bots/${currentBotId}/quiz`);
+  const q = await res.json();
+  document.getElementById('quiz-time').value = q.quizTime || '12:00';
+  document.getElementById('quiz-welcome').value = q.welcomeMessage || '';
+}
+async function saveQuiz() {
+  const q = {
+    quizTime: document.getElementById('quiz-time').value,
+    welcomeMessage: document.getElementById('quiz-welcome').value,
+  };
+  await fetch(`/api/bots/${currentBotId}/quiz`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(q) });
+  alert('Quiz settings saved!');
+}
+async function sendQuizNow() {
+  const res = await fetch(`/api/bots/${currentBotId}/quiz/send`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+  const data = await res.json();
+  if (data.error) alert(data.error);
+  else alert(`Quiz sent to ${data.sent} group(s)!`);
+}
 
-      function renderQuiz(q) {
-        document.getElementById('quiz-time').value = q.quizTime || '';
-        document.getElementById('welcome-message').value = q.welcomeMessage || '';
-        // Populate quiz group dropdown
-        const sel = document.getElementById('quiz-group');
-        const current = sel.value;
-        sel.innerHTML = '<option value="all">All admin groups</option>';
-        const groups = window._currentGroups || [];
-        for (const g of groups) if (g.isAdmin) sel.innerHTML += '<option value="' + g.jid + '">' + escapeHtml(g.name) + '</option>';
-        sel.value = current;
-      }
+// --- Activity Log ---
+async function loadLogs() {
+  const res = await fetch(`/api/bots/${currentBotId}/logs`);
+  const logs = await res.json();
+  if (!logs.length) {
+    document.getElementById('log-list').innerHTML = '<div class="qr-placeholder">No activity yet.</div>';
+    return;
+  }
+  document.getElementById('log-list').innerHTML = logs.map(l => `
+    <div class="log-entry">
+      <div>${l.action.replace(/_/g,' ')} ${l.details ? '— ' + l.details : ''}</div>
+      ${l.group ? `<div class="group-meta">${l.group}</div>` : ''}
+      <div class="log-time">${new Date(l.timestamp).toLocaleString()}</div>
+    </div>
+  `).join('');
+}
 
-      async function pollBot() {
-        try {
-          const res = await api('/status', { cache: 'no-store' });
-          const status = await res.json();
-          setStatus(status);
-          if (status.connection === 'connected') {
-            const [g, l, s, gs, sc, rl] = await Promise.all([
-              api('/groups', { cache: 'no-store' }),
-              api('/logs', { cache: 'no-store' }),
-              api('/settings', { cache: 'no-store' }),
-              api('/group-settings', { cache: 'no-store' }),
-              api('/schedules', { cache: 'no-store' }),
-              api('/rules', { cache: 'no-store' }),
-            ]);
-            currentGroupSettings = await gs.json();
-            const groupsData = await g.json();
-            window._currentGroups = groupsData;
-            renderGroups(groupsData);
-            renderLogs(await l.json());
-            if (!currentSettings) renderSettings(await s.json());
-            renderSchedules(await sc.json());
-            renderRules(await rl.json());
-            renderQuiz(await (await api('/quiz', { cache: 'no-store' })).json());
-          }
-        } catch {
-          document.getElementById('status-badge').textContent = 'Connection lost…';
-          document.getElementById('status-badge').className = 'status-badge s-error';
-        }
-        pollTimer = setTimeout(pollBot, 5000);
-      }
+// --- Create Bot ---
+function showCreateModal() { document.getElementById('create-modal').hidden = false; }
+function hideCreateModal() { document.getElementById('create-modal').hidden = true; document.getElementById('create-error').hidden = true; }
+async function createBot() {
+  const btn = document.getElementById('create-btn');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  const body = {
+    phoneNumber: document.getElementById('new-phone').value.trim(),
+    displayName: document.getElementById('new-name').value.trim() || null,
+    role: document.getElementById('new-role').value,
+  };
+  try {
+    const res = await fetch('/api/bots', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) {
+      const errEl = document.getElementById('create-error');
+      errEl.textContent = data.error; errEl.hidden = false;
+      btn.disabled = false; btn.textContent = 'Create Bot';
+      return;
+    }
+    hideCreateModal();
+    document.getElementById('new-phone').value = '';
+    document.getElementById('new-name').value = '';
+    loadBots();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Create Bot';
+  }
+}
 
-      // --- Event handlers ---
-      document.getElementById('back-btn').addEventListener('click', () => navigate(''));
+// --- Logout ---
+async function logout() {
+  event.preventDefault();
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/';
+}
 
-      document.getElementById('save-config').addEventListener('click', async () => {
-        const role = document.getElementById('bot-role').value;
-        const displayName = document.getElementById('bot-name').value.trim() || null;
-        const capabilities = {
-          moderation: document.getElementById('cap-moderation').checked,
-          antiLink: document.getElementById('cap-antiLink').checked,
-          announcements: document.getElementById('cap-announcements').checked,
-          quiz: document.getElementById('cap-quiz').checked,
-          greeter: document.getElementById('cap-greeter').checked,
-        };
-        try {
-          await fetch('/api/bots/' + currentBotId, {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role, displayName, capabilities }),
-          });
-          showToast('Configuration saved');
-        } catch { showToast('Failed', 'error'); }
-      });
-
-      document.getElementById('start-stop-btn').addEventListener('click', async () => {
-        const btn = document.getElementById('start-stop-btn');
-        btn.disabled = true;
-        try {
-          const endpoint = currentActive ? '/deactivate' : '/activate';
-          const res = await api(endpoint, { method: 'POST' });
-          if (res.ok) {
-            showToast(currentActive ? 'Bot stopped' : 'Bot started');
-            currentActive = !currentActive;
-          } else { showToast('Failed', 'error'); }
-        } catch { showToast('Network error', 'error'); }
-        btn.disabled = false;
-      });
-
-      document.getElementById('remove-bot-btn').addEventListener('click', async () => {
-        if (!confirm('Remove this bot? Auth credentials will be kept.')) return;
-        try {
-          await fetch('/api/bots/' + currentBotId, { method: 'DELETE' });
-          showToast('Bot removed');
-          navigate('');
-        } catch { showToast('Failed', 'error'); }
-      });
-
-      document.getElementById('logout-btn').addEventListener('click', async () => {
-        if (!confirm('Logout this bot from WhatsApp? You will need to scan a new QR code to reconnect.')) return;
-        const btn = document.getElementById('logout-btn');
-        btn.disabled = true; btn.textContent = 'Logging out…';
-        try {
-          const res = await api('/logout', { method: 'POST' });
-          if (res.ok) {
-            showToast('Logged out — scan QR to reconnect');
-          } else { showToast('Failed', 'error'); }
-        } catch { showToast('Network error', 'error'); }
-        btn.disabled = false; btn.textContent = '🚪 Logout';
-      });
-
-      document.getElementById('refresh-groups').addEventListener('click', async () => {
-        const btn = document.getElementById('refresh-groups');
-        btn.disabled = true; btn.textContent = 'Loading…';
-        try {
-          const res = await api('/groups/refresh', { method: 'POST' });
-          if (res.ok) { renderGroups(await res.json()); showToast('Groups refreshed'); }
-          else showToast('Failed', 'error');
-        } catch { showToast('Network error', 'error'); }
-        btn.disabled = false; btn.textContent = '↻ Refresh';
-      });
-
-      document.getElementById('settings-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const antiLink = document.getElementById('anti-link').checked;
-        const antiAbuse = document.getElementById('anti-abuse').checked;
-        const abusiveWords = document.getElementById('abusive-words').value.split(',').map(w => w.trim()).filter(Boolean);
-        try {
-          const res = await api('/settings', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ antiLink, antiAbuse, abusiveWords }),
-          });
-          if (res.ok) { renderSettings(await res.json()); showToast('Settings saved'); }
-          else showToast('Failed', 'error');
-        } catch { showToast('Network error', 'error'); }
-      });
-
-      document.getElementById('schedules-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const schedules = {
-          openTime: document.getElementById('schedule-open').value,
-          closeTime: document.getElementById('schedule-close').value,
-          morningTime: document.getElementById('schedule-morning').value,
-          morningMessage: document.getElementById('morning-message').value,
-        };
-        try {
-          const res = await api('/schedules', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(schedules),
-          });
-          if (res.ok) { renderSchedules(await res.json()); showToast('Schedule saved'); }
-          else showToast('Failed', 'error');
-        } catch { showToast('Network error', 'error'); }
-      });
-
-      document.getElementById('quiz-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const quizTime = document.getElementById('quiz-time').value;
-        const welcomeMessage = document.getElementById('welcome-message').value;
-        try {
-          const res = await api('/quiz', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ quizTime, welcomeMessage }),
-          });
-          if (res.ok) { renderQuiz(await res.json()); showToast('Quiz settings saved'); }
-          else showToast('Failed', 'error');
-        } catch { showToast('Network error', 'error'); }
-      });
-
-      document.getElementById('send-quiz-btn').addEventListener('click', async () => {
-        const groupJid = document.getElementById('quiz-group').value;
-        const btn = document.getElementById('send-quiz-btn');
-        btn.disabled = true; btn.textContent = 'Sending…';
-        try {
-          const res = await api('/quiz/send', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupJid }),
-          });
-          if (res.ok) {
-            const r = await res.json();
-            showToast('Quiz sent to ' + r.sent + ' group(s)');
-          } else showToast('Failed', 'error');
-        } catch { showToast('Network error', 'error'); }
-        btn.disabled = false; btn.textContent = '📝 Send Quiz Now';
-      });
-
-      document.getElementById('save-rules-btn').addEventListener('click', async (e) => {
-        e.preventDefault();
-        const rulesMessage = document.getElementById('rules-message').value;
-        try {
-          await api('/rules', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rulesMessage }),
-          });
-          showToast('Rules saved');
-        } catch { showToast('Failed', 'error'); }
-      });
-
-      document.getElementById('send-rules-btn').addEventListener('click', async () => {
-        const rulesMessage = document.getElementById('rules-message').value;
-        const groupJid = document.getElementById('rules-group').value;
-        try {
-          const res = await api('/rules', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rulesMessage, send: true, groupJid }),
-          });
-          if (res.ok) {
-            const r = await res.json();
-            showToast('Rules sent to ' + r.sent + ' group(s)');
-          } else showToast('Failed', 'error');
-        } catch { showToast('Network error', 'error'); }
-      });
-
-      document.getElementById('instruction-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const groupJid = document.getElementById('instruction-group').value;
-        const message = document.getElementById('instruction-message').value.trim();
-        if (!message) return;
-        const btn = document.getElementById('send-instruction');
-        btn.disabled = true; btn.textContent = 'Sending…';
-        try {
-          const res = await api('/instruction', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ groupJid, message }),
-          });
-          if (res.ok) {
-            const r = await res.json();
-            showToast('Sent to ' + r.sent + ' group(s)');
-            document.getElementById('instruction-message').value = '';
-          } else { const e2 = await res.json(); showToast(e2.error || 'Failed', 'error'); }
-        } catch { showToast('Network error', 'error'); }
-        btn.disabled = false; btn.textContent = 'Send';
-      });
-
-      // --- Init ---
-      const initialId = getBotIdFromHash();
-      if (initialId) showBotView(initialId);
-      else showHome();
-    </script>
-  </body>
+checkAuth();
+</script>
+</body>
 </html>

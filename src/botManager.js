@@ -1,108 +1,206 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { mkdir, rm, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { BotInstance } from './BotInstance.js';
 import { config } from './config.js';
+import { pool } from './db.js';
 
 export class BotManager {
   constructor() {
-    this.bots = new Map();
+    this.bots = new Map(); // botId -> BotInstance
   }
 
+  // Load all bots from database on startup
   async init() {
-    let configs = config.defaultBots;
     try {
-      const data = await readFile(config.configsPath, 'utf-8');
-      configs = JSON.parse(data);
-    } catch {
-      // First run — use defaults and persist them
-    }
-
-    for (const botConfig of configs) {
-      const bot = new BotInstance(botConfig);
-      this.bots.set(botConfig.id, bot);
-      if (bot.active) {
-        bot.start().catch((e) => console.error(`❌ ${botConfig.id} start error:`, e));
-      } else {
-        bot.updateConnection('stopped');
-        console.log(`⏸️ ${botConfig.id} is deactivated, skipping start.`);
+      const result = await pool.query('SELECT * FROM bots ORDER BY created_at');
+      for (const row of result.rows) {
+        const bot = new BotInstance({
+          id: row.id,
+          number: row.phone_number,
+          displayName: row.display_name,
+          role: row.role,
+          authDir: row.auth_dir,
+          active: row.active,
+          capabilities: row.capabilities,
+        });
+        this.bots.set(bot.id, bot);
+        if (bot.active) {
+          bot.start().catch((e) => console.error(`❌ ${bot.id} start error:`, e));
+        } else {
+          bot.updateConnection('stopped');
+          console.log(`⏸️ ${bot.id} is deactivated, skipping start.`);
+        }
       }
-    }
-
-    await this.saveConfigs();
-  }
-
-  async saveConfigs() {
-    const configs = Array.from(this.bots.values()).map((b) => ({
-      id: b.id,
-      number: b.number,
-      displayName: b.displayName,
-      role: b.role,
-      authDir: b.authDir,
-      active: b.active,
-      capabilities: b.capabilities,
-    }));
-    try {
-      await mkdir(dirname(config.configsPath), { recursive: true });
-      await writeFile(config.configsPath, JSON.stringify(configs, null, 2));
-    } catch (error) {
-      console.error('❌ Failed to save bot configs:', error.message);
+      console.log(`🤖 ${this.bots.size} bot(s) loaded from database.`);
+    } catch (err) {
+      console.error('❌ Failed to load bots from database:', err.message);
     }
   }
 
-  async addBot({ number, displayName, role }) {
-    const id = `bot${this.bots.size + 1}`;
-    const authDir = `./auth_info/${id}`;
-    if (this.bots.has(id)) throw new Error(`Bot ${id} already exists`);
+  // Create a bot for a specific user
+  async createBot(userId, { phoneNumber, displayName, role }) {
+    // Check plan limits
+    const userResult = await pool.query('SELECT plan FROM users WHERE id = $1', [userId]);
+    const user = userResult.rows[0];
+    if (!user) throw new Error('User not found');
 
-    const bot = new BotInstance({ id, number, displayName, role, authDir });
-    this.bots.set(id, bot);
-    await this.saveConfigs();
-    bot.start().catch((e) => console.error(`❌ ${id} start error:`, e));
+    const plan = config.plans[user.plan] || config.plans.free;
+    const existingCount = await this.countUserBots(userId);
+    if (plan.maxBots !== -1 && existingCount >= plan.maxBots) {
+      throw new Error(`Your ${plan.name} plan allows ${plan.maxBots} bot(s). Upgrade to create more.`);
+    }
+
+    // Generate unique bot ID
+    const botId = `bot_${userId}_${Date.now()}`;
+    const authDir = join(config.authDirRoot, `user_${userId}`, botId);
+
+    // Ensure directory exists
+    await mkdir(authDir, { recursive: true });
+
+    const capabilities = this.getDefaultCapabilities(role);
+
+    // Save to database
+    await pool.query(
+      `INSERT INTO bots (id, user_id, phone_number, display_name, role, auth_dir, active, capabilities)
+       VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
+      [botId, userId, phoneNumber || null, displayName || null, role || 'Moderator', authDir, JSON.stringify(capabilities)],
+    );
+
+    // Create and start instance
+    const bot = new BotInstance({
+      id: botId,
+      number: phoneNumber,
+      displayName,
+      role: role || 'Moderator',
+      authDir,
+      capabilities,
+      active: true,
+    });
+    this.bots.set(botId, bot);
+    bot.start().catch((e) => console.error(`❌ ${botId} start error:`, e));
+
     return bot;
   }
 
-  async removeBot(id) {
-    const bot = this.bots.get(id);
-    if (!bot) throw new Error(`Bot ${id} not found`);
-    bot.stop();
-    this.bots.delete(id);
-    await this.saveConfigs();
+  // List bots for a specific user
+  async listUserBots(userId) {
+    const result = await pool.query('SELECT * FROM bots WHERE user_id = $1 ORDER BY created_at', [userId]);
+    return result.rows.map((row) => {
+      const bot = this.bots.get(row.id);
+      return {
+        id: row.id,
+        phoneNumber: row.phone_number,
+        displayName: row.display_name,
+        role: row.role,
+        active: row.active,
+        capabilities: row.capabilities,
+        connection: bot?.state.connection || 'stopped',
+        botNumber: bot?.state.botNumber || null,
+        createdAt: row.created_at,
+      };
+    });
   }
 
-  updateBot(id, updates) {
-    const bot = this.bots.get(id);
-    if (!bot) throw new Error(`Bot ${id} not found`);
-    if (updates.role !== undefined) bot.role = updates.role;
-    if (updates.displayName !== undefined) bot.displayName = updates.displayName || null;
-    if (updates.number !== undefined) bot.number = updates.number;
-    if (updates.capabilities !== undefined) bot.updateCapabilities(updates.capabilities);
-    this.saveConfigs();
+  // Get a bot and verify ownership
+  async getBotForUser(botId, userId) {
+    const result = await pool.query('SELECT * FROM bots WHERE id = $1 AND user_id = $2', [botId, userId]);
+    if (!result.rows.length) return null;
+    return this.bots.get(botId);
+  }
+
+  async countUserBots(userId) {
+    const result = await pool.query('SELECT COUNT(*) FROM bots WHERE user_id = $1', [userId]);
+    return parseInt(result.rows[0].count, 10);
+  }
+
+  // Update bot config in database
+  async updateBot(botId, userId, updates) {
+    const bot = await this.getBotForUser(botId, userId);
+    if (!bot) throw new Error('Bot not found');
+
+    const setClauses = [];
+    const params = [];
+    let paramIdx = 1;
+
+    if (updates.displayName !== undefined) {
+      bot.displayName = updates.displayName || null;
+      setClauses.push(`display_name = $${paramIdx++}`);
+      params.push(bot.displayName);
+    }
+    if (updates.role !== undefined) {
+      bot.role = updates.role;
+      setClauses.push(`role = $${paramIdx++}`);
+      params.push(bot.role);
+    }
+    if (updates.phoneNumber !== undefined) {
+      bot.number = updates.phoneNumber;
+      setClauses.push(`phone_number = $${paramIdx++}`);
+      params.push(bot.phoneNumber);
+    }
+    if (updates.capabilities !== undefined) {
+      bot.updateCapabilities(updates.capabilities);
+      setClauses.push(`capabilities = $${paramIdx++}`);
+      params.push(JSON.stringify(bot.capabilities));
+    }
+
+    if (setClauses.length) {
+      params.push(botId, userId);
+      await pool.query(`UPDATE bots SET ${setClauses.join(', ')} WHERE id = $${paramIdx++} AND user_id = $${paramIdx++}`, params);
+    }
     return bot;
   }
 
-  async activateBot(id) {
-    const bot = this.bots.get(id);
-    if (!bot) throw new Error(`Bot ${id} not found`);
+  async activateBot(botId, userId) {
+    const bot = await this.getBotForUser(botId, userId);
+    if (!bot) throw new Error('Bot not found');
     await bot.activate();
-    await this.saveConfigs();
+    await pool.query('UPDATE bots SET active = true WHERE id = $1', [botId]);
   }
 
-  async deactivateBot(id) {
-    const bot = this.bots.get(id);
-    if (!bot) throw new Error(`Bot ${id} not found`);
+  async deactivateBot(botId, userId) {
+    const bot = await this.getBotForUser(botId, userId);
+    if (!bot) throw new Error('Bot not found');
     await bot.deactivate();
-    await this.saveConfigs();
+    await pool.query('UPDATE bots SET active = false WHERE id = $1', [botId]);
   }
 
-  async logoutBot(id) {
-    const bot = this.bots.get(id);
-    if (!bot) throw new Error(`Bot ${id} not found`);
+  async logoutBot(botId, userId) {
+    const bot = await this.getBotForUser(botId, userId);
+    if (!bot) throw new Error('Bot not found');
     await bot.logout();
-    await this.saveConfigs();
+    await pool.query('UPDATE bots SET active = false WHERE id = $1', [botId]);
   }
 
-  getBot(id) {
-    return this.bots.get(id);
+  async deleteBot(botId, userId) {
+    const bot = await this.getBotForUser(botId, userId);
+    if (!bot) throw new Error('Bot not found');
+
+    bot.stop();
+    this.bots.delete(botId);
+
+    // Clean auth directory
+    try {
+      await rm(bot.authDir, { recursive: true, force: true });
+    } catch (e) {
+      console.error(`❌ ${botId} auth cleanup error:`, e.message);
+    }
+
+    await pool.query('DELETE FROM bots WHERE id = $1 AND user_id = $2', [botId, userId]);
+  }
+
+  getBot(botId) {
+    return this.bots.get(botId);
+  }
+
+  getDefaultCapabilities(role) {
+    switch (role) {
+      case 'Guard': return { moderation: false, antiLink: true, announcements: false, quiz: false, greeter: false };
+      case 'Announcer': return { moderation: false, antiLink: false, announcements: true, quiz: false, greeter: false };
+      case 'Quiz': return { moderation: false, antiLink: false, announcements: false, quiz: true, greeter: false };
+      case 'Greeter': return { moderation: false, antiLink: false, announcements: false, quiz: false, greeter: true };
+      default: return { moderation: true, antiLink: true, announcements: true, quiz: true, greeter: true };
+    }
   }
 
   listBots() {

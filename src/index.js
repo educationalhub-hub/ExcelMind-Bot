@@ -26,18 +26,29 @@ process.on('unhandledRejection', (reason) => {
 });
 
 import { BotManager } from './botManager.js';
-import { createDashboardServer } from './dashboardServer.js';
+import { createApp } from './dashboardServer.js';
+import { migrate } from './db.js';
 
-const botManager = new BotManager();
-const { server } = createDashboardServer(botManager);
+async function main() {
+  // Run database migrations first
+  await migrate();
 
-server.on('error', (error) => {
-  console.error('❌ Dashboard server failed:', error.message);
-  process.exit(1);
-});
-
-server.listen(3000, '0.0.0.0', async () => {
-  console.log('📊 ExcelMind-Bot dashboard is ready on port 3000.');
+  const botManager = new BotManager();
   await botManager.init();
-  console.log(`🤖 ${botManager.bots.size} bot(s) initialized.`);
+
+  const app = createApp(botManager);
+
+  const server = app.listen(3000, '0.0.0.0', () => {
+    console.log('📊 ExcelMind-Bot SaaS platform is ready on port 3000.');
+  });
+
+  server.on('error', (error) => {
+    console.error('❌ Server failed:', error.message);
+    process.exit(1);
+  });
+}
+
+main().catch((err) => {
+  console.error('❌ Failed to start:', err);
+  process.exit(1);
 });

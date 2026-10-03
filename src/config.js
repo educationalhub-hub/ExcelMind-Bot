@@ -1,13 +1,29 @@
 export const config = {
   botDisplayName: 'Bot',
   muteDurationMs: 12 * 60 * 60 * 1000, // 12 hours
-  configsPath: './auth_info/bot-configs.json',
+  authDirRoot: './auth_info',
 
-  defaultBots: [
-    { id: 'bot1', number: '2349164237873', displayName: 'Quiz Master', role: 'Quiz', authDir: './auth_info', active: true, capabilities: { moderation: false, antiLink: false, announcements: false, quiz: true, greeter: false } },
-    { id: 'bot2', number: '2347018544908', displayName: null, role: 'Guard', authDir: './auth_info/bot2', active: true, capabilities: { moderation: false, antiLink: true, announcements: false, quiz: false, greeter: false } },
-    { id: 'bot3', number: '2349114112326', displayName: null, role: 'Moderator', authDir: './auth_info/bot3', active: true, capabilities: { moderation: true, antiLink: true, announcements: true, quiz: true, greeter: true } },
-  ],
+  // Subscription plans
+  plans: {
+    free: {
+      name: 'Free',
+      priceId: null, // no Stripe price
+      maxBots: 1,
+      features: ['1 WhatsApp bot', 'Anti-link moderation', 'Basic dashboard'],
+    },
+    pro: {
+      name: 'Pro',
+      priceId: null, // set via Stripe dashboard — user provides STRIPE_PRO_PRICE_ID
+      maxBots: 5,
+      features: ['Up to 5 bots', 'Anti-link & anti-abuse', 'Scheduled announcements', 'Quiz system', 'Greeter', 'Group lock/unlock'],
+    },
+    business: {
+      name: 'Business',
+      priceId: null,
+      maxBots: -1, // unlimited
+      features: ['Unlimited bots', 'All Pro features', 'Priority support', 'Custom roles'],
+    },
+  },
 
   defaultRules: `📋 *GROUP RULES & REGULATIONS*
 
