@@ -4,6 +4,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import P from 'pino';
 import QRCode from 'qrcode';
+import { rm } from 'node:fs/promises';
 import {
   containsLink,
   resetLinkRegex,
@@ -120,7 +121,15 @@ export class BotInstance {
       }
       this.sock = null;
     }
+    // Wipe stale auth files so the next start() generates a fresh QR
+    try {
+      await rm(this.authDir, { recursive: true, force: true });
+      console.log(`🧹 ${this.id}: auth directory cleared for fresh pairing`);
+    } catch (e) {
+      console.error(`❌ ${this.id} auth cleanup error:`, e.message);
+    }
     this.active = false;
+    this.qrRevision = 0;
     this.updateConnection('logged_out');
     this.addLog('bot_logout', { details: 'Bot logged out — scan QR to reconnect' });
     console.log(`🚪 ${this.id}: logged out`);
@@ -261,6 +270,16 @@ export class BotInstance {
           () => this.start().catch((e) => console.error(`❌ ${this.id} restart error:`, e)),
           10000,
         );
+      } else {
+        // Session was logged out on WhatsApp's side — wipe stale auth files
+        // so the next activate() generates a fresh QR instead of retrying dead creds
+        this.qrRevision = 0;
+        try {
+          await rm(this.authDir, { recursive: true, force: true });
+          console.log(`🧹 ${this.id}: stale auth cleared (was logged out)`);
+        } catch (e) {
+          console.error(`❌ ${this.id} auth cleanup error:`, e.message);
+        }
       }
     }
   }
