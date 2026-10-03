@@ -73,6 +73,41 @@ textarea{resize:vertical;min-height:80px}
 /* Profile */
 .profile-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
 .profile-label{font-weight:600}.profile-value{color:var(--muted)}
+
+/* Platform switcher */
+.platform-switcher{display:flex;gap:12px;margin-bottom:16px}
+.platform-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:12px;border:2px solid var(--border);background:var(--card);font-weight:700;font-size:16px;cursor:pointer;transition:all .15s;color:var(--muted)}
+.platform-btn:hover{transform:translateY(-1px)}
+.platform-btn.active.wa-active{border-color:var(--wa);color:var(--wa);background:#f0fdf4}
+.platform-btn.active.tg-active{border-color:var(--tg);color:var(--tg);background:#f0f7ff}
+.plat-count{font-size:13px;font-weight:600;background:var(--border);padding:2px 10px;border-radius:10px;color:var(--text)}
+.platform-btn.active .plat-count{color:#fff}
+.platform-btn.active.wa-active .plat-count{background:var(--wa)}
+.platform-btn.active.tg-active .plat-count{background:var(--tg)}
+.platform-banner{padding:8px 16px;border-radius:10px;font-weight:600;font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.platform-banner.wa-banner{background:#f0fdf4;color:#065f46;border:1px solid var(--wa)}
+.platform-banner.tg-banner{background:#f0f7ff;color:#1e40af;border:1px solid var(--tg)}
+
+/* Inline admin */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;text-align:center}
+.stat-value{font-size:28px;font-weight:800;color:var(--primary)}
+.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
+.badge-active{background:#d1fae5;color:#065f46}.badge-inactive{background:#fee2e2;color:#991b1b}
+.badge-founder{background:#eef2ff;color:#4f46e5}.badge-admin{background:#dbeafe;color:#1e40af}.badge-user{background:#e5e7eb;color:#374151}
+.badge-free{background:#f3f4f6;color:#6b7280}.badge-pro{background:#d1fae5;color:#065f46}.badge-business{background:#fef3c7;color:#92400e}
+.ann-item{padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:12px}
+.ann-item h3{font-size:15px;margin-bottom:4px}.ann-item p{font-size:14px;color:var(--muted)}
+.admin-subnav{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.admin-subnav button{padding:8px 16px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);border:1.5px solid var(--border);background:var(--card);border-radius:10px}
+.admin-subnav button.active{color:var(--primary);border-color:var(--primary);background:#eef2ff}
+.user-actions{display:flex;gap:6px;flex-wrap:wrap}
+.btn-success{background:#16a34a;color:#fff}
+.tab-locked{padding:40px;text-align:center;color:var(--muted)}
+.tab-locked .lock-icon{font-size:48px;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -99,6 +134,11 @@ textarea{resize:vertical;min-height:80px}
       <h2 style="font-size:18px">Your Bots</h2>
       <button class="btn btn-primary btn-sm" onclick="showCreateModal()">+ New Bot</button>
     </div>
+    <div class="platform-switcher">
+      <button class="platform-btn active wa-active" id="plat-wa" onclick="switchPlatform('whatsapp',this)">💬 WhatsApp <span class="plat-count" id="wa-count">0</span></button>
+      <button class="platform-btn tg-active" id="plat-tg" onclick="switchPlatform('telegram',this)">✈️ Telegram <span class="plat-count" id="tg-count">0</span></button>
+    </div>
+    <div id="platform-banner" class="platform-banner wa-banner">You are viewing your <strong>WhatsApp</strong> bots</div>
     <div id="bot-list-view">
       <div class="bot-grid" id="bot-grid"><div class="qr-placeholder">Loading your bots...</div></div>
     </div>
@@ -245,13 +285,53 @@ textarea{resize:vertical;min-height:80px}
       <h2>Available Plans</h2>
       <div id="plans-list"></div>
     </div>
+    <div class="card">
+      <h2>💳 Manual Payment (Bank Transfer)</h2>
+      <p style="color:var(--muted);margin-bottom:12px">Prefer to pay directly? Transfer to the account below, then send proof of payment on WhatsApp to activate your plan.</p>
+      <div style="background:#f8fafc;border:1px dashed var(--primary);border-radius:12px;padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Account Name:</strong> <span>Daniel Oluwatimileyin Awolola</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Account Number:</strong> <span>9114112326 <button class="btn btn-outline btn-sm" style="padding:2px 10px;font-size:11px" onclick="navigator.clipboard.writeText('9114112326').then(()=>alert('Copied!'))">Copy</button></span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Bank:</strong> <span>Opay</span></div>
+      </div>
+      <a href="https://wa.me/2349114112326?text=Hello%20Daniel%2C%20I%20just%20made%20a%20payment%20for%20OmniMod.%20Here%20is%20my%20proof%20of%20payment%3A" target="_blank" class="btn btn-primary" style="margin-top:14px;display:inline-block">💬 Send Proof on WhatsApp</a>
+    </div>
   </div>
 
-  <!-- ===== ADMIN VIEW (redirect to admin page) ===== -->
+  <!-- ===== ADMIN VIEW (inline) ===== -->
   <div id="view-admin" hidden>
-    <div class="card" style="text-align:center;padding:40px">
-      <p style="margin-bottom:16px">Admin dashboard is available on a separate page.</p>
-      <a href="/admin" class="btn btn-primary">Go to Admin Dashboard →</a>
+    <div class="admin-subnav">
+      <button class="active" onclick="showAdminView('stats',this)">📊 Overview</button>
+      <button onclick="showAdminView('users',this)">👥 Users</button>
+      <button onclick="showAdminView('announcements',this)">📢 Announcements</button>
+    </div>
+
+    <div id="admin-stats">
+      <div class="stats-grid" id="stats-grid"><div class="stat-card"><div class="stat-value">...</div><div class="stat-label">Loading</div></div></div>
+    </div>
+
+    <div id="admin-users" hidden>
+      <div class="card">
+        <h2>All Users</h2>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>Email</th><th>Name</th><th>Plan</th><th>Role</th><th>Bots</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="users-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="admin-announcements" hidden>
+      <div class="card">
+        <h2>Create Announcement</h2>
+        <div id="ann-error" class="error" hidden></div>
+        <div class="form-group"><label>Title</label><input type="text" id="ann-title" placeholder="e.g. New Feature Available"></div>
+        <div class="form-group"><label>Type</label><select id="ann-type"><option value="announcement">Announcement</option><option value="update">Update</option><option value="maintenance">Maintenance</option></select></div>
+        <div class="form-group"><label>Message</label><textarea id="ann-message" placeholder="Type your announcement message..."></textarea></div>
+        <button class="btn btn-primary" onclick="createAnnouncement()">Create Announcement</button>
+      </div>
+      <div class="card">
+        <h2>Existing Announcements</h2>
+        <div id="ann-list"><div style="color:var(--muted)">Loading...</div></div>
+      </div>
     </div>
   </div>
 </div>
@@ -299,9 +379,12 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <script>
-let currentBotId=null, pollTimer=null, bots=[], currentUser=null, userPlan='free';
+let currentBotId=null, pollTimer=null, bots=[], currentUser=null, userPlan='free', currentPlatform='whatsapp';
 const ALL_CAPS=[['moderation','Moderation (anti-abuse)'],['antiLink','Anti-Link'],['announcements','Announcements & Schedules'],['quiz','Quiz System'],['greeter','Greeter (welcome new members)']];
-const FREE_CAPS=['antiLink'];
+// Capabilities locked for regular (non-admin) users
+const LOCKED_CAPS=['antiLink','announcements'];
+function isAdmin(){return currentUser&&(currentUser.role==='admin'||currentUser.role==='founder');}
+function lockedCaps(){return isAdmin()?[]:LOCKED_CAPS;}
 
 // --- Auth ---
 async function checkAuth(){
@@ -325,17 +408,115 @@ function showView(view,el){
   if(view==='bots'){document.getElementById('bot-detail-view').hidden=true;document.getElementById('bot-list-view').hidden=false;loadBots();}
   if(view==='profile') loadProfile();
   if(view==='premium') loadPlans();
+  if(view==='admin') loadAdminView();
 }
+
+// --- Admin (inline) ---
+function loadAdminView(){loadAdminStats();loadAdminUsers();loadAdminAnnouncements();}
+function showAdminView(view,el){
+  document.getElementById('admin-stats').hidden=view!=='stats';
+  document.getElementById('admin-users').hidden=view!=='users';
+  document.getElementById('admin-announcements').hidden=view!=='announcements';
+  document.querySelectorAll('.admin-subnav button').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(view==='stats') loadAdminStats();
+  if(view==='users') loadAdminUsers();
+  if(view==='announcements') loadAdminAnnouncements();
+}
+async function loadAdminStats(){
+  try{
+    const res=await fetch('/api/admin/stats');const data=await res.json();
+    const cards=[['Total Users',data.totalUsers],['Active Users',data.activeUsers],['Paid Users',data.paidUsers],['Total Bots',data.totalBots],['Active Bots',data.activeBots],['WhatsApp Bots',data.waBots],['Telegram Bots',data.tgBots]];
+    let html=cards.map(([label,val])=>`<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join('');
+    if(data.planBreakdown&&data.planBreakdown.length){
+      html+=`<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Plan Breakdown</div><div style="font-size:16px;margin-top:8px">${data.planBreakdown.map(p=>`${p.plan}: ${p.count}`).join(' • ')}</div></div>`;
+    }
+    document.getElementById('stats-grid').innerHTML=html;
+  }catch{}
+}
+async function loadAdminUsers(){
+  try{
+    const res=await fetch('/api/admin/users');const users=await res.json();
+    document.getElementById('users-tbody').innerHTML=users.map(u=>`<tr>
+      <td>${u.email}</td><td>${u.name||'-'}</td>
+      <td><span class="badge badge-${u.plan}">${u.plan}</span></td>
+      <td><span class="badge badge-${u.role}">${u.role}</span></td>
+      <td>${u.bot_count||0}</td>
+      <td><span class="badge ${u.is_active?'badge-active':'badge-inactive'}">${u.is_active?'Active':'Inactive'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td class="user-actions">
+        ${u.is_active?`<button class="btn btn-outline btn-sm" onclick="toggleUser(${u.id},false)">Deactivate</button>`:`<button class="btn btn-success btn-sm" onclick="toggleUser(${u.id},true)">Activate</button>`}
+        ${u.role==='user'?`<button class="btn btn-outline btn-sm" onclick="setRole(${u.id},'admin')">Make Admin</button>`:`<button class="btn btn-outline btn-sm" onclick="setRole(${u.id},'user')" ${u.role==='founder'?'disabled':''}>Demote</button>`}
+        <select class="btn btn-outline btn-sm" onchange="setPlan(${u.id},this.value);this.value=''" style="padding:4px 8px"><option value="">Plan...</option><option value="free">Free</option><option value="pro">Pro</option><option value="business">Business</option></select>
+        <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.email}')" ${u.role==='founder'?'disabled':''}>Delete</button>
+      </td>
+    </tr>`).join('');
+  }catch{}
+}
+async function toggleUser(id,active){await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:active})});loadAdminUsers();loadAdminStats();}
+async function setRole(id,role){await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});loadAdminUsers();}
+async function setPlan(id,plan){if(!plan)return;await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});loadAdminUsers();loadAdminStats();}
+async function deleteUser(id,email){if(!confirm(`Delete user ${email}? This will also delete all their bots.`))return;const res=await fetch(`/api/admin/users/${id}`,{method:'DELETE'});const d=await res.json();if(d.error)alert(d.error);else{loadAdminUsers();loadAdminStats();}}
+async function loadAdminAnnouncements(){
+  try{
+    const res=await fetch('/api/admin/announcements');const items=await res.json();
+    if(!items.length){document.getElementById('ann-list').innerHTML='<div style="color:var(--muted)">No announcements yet.</div>';return;}
+    document.getElementById('ann-list').innerHTML=items.map(a=>`<div class="ann-item">
+      <h3>${a.title} <span class="badge badge-${a.type==='update'?'pro':'user'}">${a.type}</span></h3>
+      <p>${a.message}</p>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">By ${a.author_email} • ${new Date(a.created_at).toLocaleString()}</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="broadcastAnnouncement(${a.id})">Broadcast to All Bots</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAnnouncement(${a.id})">Delete</button>
+      </div>
+    </div>`).join('');
+  }catch{}
+}
+async function createAnnouncement(){
+  const title=document.getElementById('ann-title').value.trim();
+  const message=document.getElementById('ann-message').value.trim();
+  const type=document.getElementById('ann-type').value;
+  if(!title||!message){const e=document.getElementById('ann-error');e.textContent='Title and message are required';e.hidden=false;return;}
+  document.getElementById('ann-error').hidden=true;
+  const res=await fetch('/api/admin/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,message,type})});
+  if(res.ok){document.getElementById('ann-title').value='';document.getElementById('ann-message').value='';loadAdminAnnouncements();}
+}
+async function deleteAnnouncement(id){if(!confirm('Delete this announcement?'))return;await fetch(`/api/admin/announcements/${id}`,{method:'DELETE'});loadAdminAnnouncements();}
+async function broadcastAnnouncement(id){if(!confirm('Broadcast this announcement to all connected bot groups?'))return;const res=await fetch(`/api/admin/announcements/${id}/broadcast`,{method:'POST'});const d=await res.json();if(d.error)alert(d.error);else alert(`Broadcast sent to ${d.sent} group(s)!`);}
 
 // --- Bot list ---
 async function loadBots(){
-  try{const res=await fetch('/api/bots');bots=await res.json();renderBotGrid();}
+  try{const res=await fetch('/api/bots');bots=await res.json();renderBotGrid();updatePlatformCounts();}
   catch{document.getElementById('bot-grid').innerHTML='<div class="qr-placeholder">Failed to load bots.</div>';}
+}
+function updatePlatformCounts(){
+  const waBots=bots.filter(b=>(b.platform||'whatsapp')==='whatsapp');
+  const tgBots=bots.filter(b=>b.platform==='telegram');
+  document.getElementById('wa-count').textContent=waBots.length;
+  document.getElementById('tg-count').textContent=tgBots.length;
+  // If current platform has no bots and the other does, auto-switch
+  const currentBots=bots.filter(b=>(b.platform||'whatsapp')===currentPlatform);
+  if(!currentBots.length&&tgBots.length&&currentPlatform==='whatsapp')switchPlatform('telegram',document.getElementById('plat-tg'));
+  else if(!currentBots.length&&waBots.length&&currentPlatform==='telegram')switchPlatform('whatsapp',document.getElementById('plat-wa'));
+}
+function switchPlatform(platform,el){
+  currentPlatform=platform;
+  document.getElementById('plat-wa').classList.toggle('active',platform==='whatsapp');
+  document.getElementById('plat-tg').classList.toggle('active',platform==='telegram');
+  const banner=document.getElementById('platform-banner');
+  if(platform==='whatsapp'){banner.className='platform-banner wa-banner';banner.innerHTML='You are viewing your <strong>WhatsApp</strong> bots';}
+  else{banner.className='platform-banner tg-banner';banner.innerHTML='You are viewing your <strong>Telegram</strong> bots';}
+  renderBotGrid();
 }
 function renderBotGrid(){
   const grid=document.getElementById('bot-grid');
-  if(!bots.length){grid.innerHTML='<div class="card" style="text-align:center;padding:40px;grid-column:1/-1"><p style="color:var(--muted);margin-bottom:16px">You have no bots yet.</p><button class="btn btn-primary" onclick="showCreateModal()">+ Create your first bot</button></div>';return;}
-  grid.innerHTML=bots.map(b=>{
+  const filtered=bots.filter(b=>(b.platform||'whatsapp')===currentPlatform);
+  if(!filtered.length){
+    const platName=currentPlatform==='telegram'?'Telegram':'WhatsApp';
+    grid.innerHTML=`<div class="card" style="text-align:center;padding:40px;grid-column:1/-1"><p style="color:var(--muted);margin-bottom:16px">You have no ${platName} bots yet.</p><button class="btn btn-primary" onclick="showCreateModal()">+ Create a ${platName} bot</button></div>`;
+    return;
+  }
+  grid.innerHTML=filtered.map(b=>{
     const conn=b.connection||'stopped';
     const plat=b.platform||'whatsapp';
     const label={connected:'Connected',connecting:'Connecting',scan:'Scan QR',reconnecting:'Reconnecting',logged_out:'Logged out',stopped:'Stopped',waiting:'Waiting',error:'Error'}[conn]||conn;
@@ -356,6 +537,8 @@ function renderBotGrid(){
 async function openBot(botId){
   currentBotId=botId;
   document.getElementById('bot-list-view').hidden=true;
+  document.querySelector('.platform-switcher').style.display='none';
+  document.getElementById('platform-banner').style.display='none';
   document.getElementById('bot-detail-view').hidden=false;
   switchTab('connect',document.querySelector('.detail-tab'));
   await refreshBot(); startPolling();
@@ -364,6 +547,8 @@ function showBotList(){
   if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
   currentBotId=null;
   document.getElementById('bot-detail-view').hidden=true;
+  document.querySelector('.platform-switcher').style.display='';
+  document.getElementById('platform-banner').style.display='';
   document.getElementById('bot-list-view').hidden=false;
   loadBots();
 }
@@ -375,7 +560,11 @@ function switchTab(tab,el){
   if(tab==='groups') loadGroups();
   if(tab==='capabilities') loadCapabilities();
   if(tab==='settings') loadSettings();
-  if(tab==='schedules') loadSchedules();
+  if(tab==='schedules'){
+    if(!isAdmin()){
+      document.getElementById('tab-schedules').innerHTML=`<div class="card tab-locked"><div class="lock-icon">🔒</div><h2>Schedules are a Premium Feature</h2><p style="margin:12px 0">Scheduled announcements (auto open/close, morning messages) are locked for standard users.</p><button class="btn btn-primary btn-sm" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2])">Upgrade Plan</button></div>`;
+    } else { loadSchedules(); }
+  }
   if(tab==='quiz') loadQuiz();
   if(tab==='activity') loadLogs();
 }
@@ -437,12 +626,14 @@ async function toggleLock(jid){if(confirm('Lock this group (admins only)?'))awai
 async function loadCapabilities(){
   const res=await fetch(`/api/bots/${currentBotId}/status`);const data=await res.json();
   const caps=data.capabilities||{};
-  const isFree=userPlan==='free';
+  const locked=lockedCaps();
   document.getElementById('cap-grid').innerHTML=ALL_CAPS.map(([key,label])=>{
-    const locked=isFree&&!FREE_CAPS.includes(key);
-    return `<div class="cap-item ${locked?'cap-locked':''}"><input type="checkbox" id="cap-${key}" ${caps[key]?'checked':''} ${locked?'disabled':''}><label for="cap-${key}">${label} ${locked?'🔒':''}</label></div>`;
+    const isLocked=locked.includes(key);
+    return `<div class="cap-item ${isLocked?'cap-locked':''}"><input type="checkbox" id="cap-${key}" ${caps[key]?'checked':''} ${isLocked?'disabled':''}><label for="cap-${key}">${label} ${isLocked?'🔒':''}</label></div>`;
   }).join('');
-  document.getElementById('cap-upgrade-hint').hidden=!isFree;
+  const hint=document.getElementById('cap-upgrade-hint');
+  hint.hidden=isAdmin();
+  if(!isAdmin())hint.innerHTML='🔒 Anti-Link and Schedules are premium features. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade your plan</a> or contact the admin to unlock them.';
 }
 async function saveCapabilities(){
   const caps={};

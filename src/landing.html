@@ -11,9 +11,9 @@ body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.7 syste
 a{color:var(--primary);text-decoration:none}
 .container{max-width:1100px;margin:0 auto;padding:0 24px}
 
-.nav{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;max-width:1100px;margin:0 auto}
+.nav{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;max-width:1100px;margin:0 auto;flex-wrap:wrap;gap:12px}
 .nav-logo{font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--primary-dark);display:flex;align-items:center;gap:8px}
-.nav-links{display:flex;gap:24px;align-items:center}
+.nav-links{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .nav-links a{color:var(--text);font-weight:600;font-size:15px}
 .btn{display:inline-block;padding:10px 24px;border-radius:10px;font-weight:700;font-size:15px;cursor:pointer;border:none;transition:transform .15s,box-shadow .15s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.12)}
@@ -49,7 +49,35 @@ a{color:var(--primary);text-decoration:none}
 .price-features li{padding:6px 0;color:var(--muted)}
 .price-features li::before{content:"✓ ";color:var(--primary);font-weight:700}
 
+/* Info sections */
+.info-section{padding:40px 24px}
+.info-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:32px;margin-bottom:24px;max-width:860px;margin-left:auto;margin-right:auto}
+.info-card h2{font-size:24px;font-weight:800;margin-bottom:16px;color:var(--primary-dark)}
+.info-card p,.info-card li{color:var(--muted);line-height:1.8}
+.info-card ul{padding-left:20px;margin:12px 0}
+.info-card strong{color:var(--text)}
+
+.founder-card{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.founder-avatar{font-size:64px;flex-shrink:0}
+.founder-info{flex:1;min-width:260px}
+.founder-info h3{font-size:22px;font-weight:800;margin-bottom:4px}
+.founder-info .founder-title{color:var(--primary);font-weight:600;margin-bottom:12px}
+.founder-contact{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.wa-contact-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;background:var(--wa);color:#fff;font-weight:700;font-size:15px}
+
+.share-grid{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:20px}
+.share-btn{display:flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;color:#fff;font-weight:700;font-size:14px;cursor:pointer;border:none;transition:transform .15s}
+.share-btn:hover{transform:translateY(-2px)}
+.share-wa{background:var(--wa)}.share-fb{background:#1877f2}.share-x{background:#000}.share-ig{background:#e4405f}.share-li{background:#0a66c2}.share-tg{background:var(--tg)}.share-copy{background:var(--muted)}
+
+.payment-card{background:linear-gradient(135deg,#eef2ff,#f0fdf4);border:2px solid var(--border);border-radius:var(--radius);padding:32px;text-align:center;max-width:560px;margin:0 auto}
+.payment-card h3{font-size:20px;font-weight:800;margin-bottom:16px}
+.payment-detail{background:var(--card);border:1px dashed var(--primary);border-radius:12px;padding:16px;margin:12px 0;display:flex;justify-content:space-between;align-items:center}
+.payment-detail .copy-hint{font-size:12px;color:var(--muted)}
+
 .footer{text-align:center;padding:32px 24px;color:var(--muted);font-size:14px;border-top:1px solid var(--border)}
+.footer-links{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+.footer-links a{color:var(--muted);font-weight:600}
 </style>
 </head>
 <body>
@@ -59,6 +87,8 @@ a{color:var(--primary);text-decoration:none}
   <div class="nav-links">
     <a href="#features">Features</a>
     <a href="#pricing">Pricing</a>
+    <a href="#about">About</a>
+    <a href="#founder">Founder</a>
     <a href="/login">Log in</a>
     <a href="/signup" class="btn btn-primary">Get Started</a>
   </div>
@@ -133,9 +163,136 @@ a{color:var(--primary);text-decoration:none}
   </div>
 </section>
 
+<!-- ===== ABOUT ===== -->
+<section class="info-section" id="about">
+  <div class="info-card">
+    <h2>ℹ️ About OmniMod</h2>
+    <p>OmniMod is a powerful, multi-tenant SaaS platform that lets you create and manage moderation bots for both <strong>WhatsApp</strong> and <strong>Telegram</strong> groups from a single dashboard. Whether you run a study group, a community, or a business channel, OmniMod automates the repetitive work — deleting links, filtering abuse, greeting new members, running quizzes, and opening/closing your groups on schedule.</p>
+    <p style="margin-top:12px">Built by educators and community managers, OmniMod was created to give group admins their time back. No coding, no servers, no technical headaches — just scan a QR code or paste a bot token and your moderation bot is live.</p>
+  </div>
+</section>
+
+<!-- ===== RULES & REGULATIONS ===== -->
+<section class="info-section">
+  <div class="info-card">
+    <h2>📋 Rules & Regulations</h2>
+    <p>By using OmniMod, you agree to the following rules:</p>
+    <ul>
+      <li><strong>No abuse:</strong> Bots must not be used to harass, spam, or harm any individual or group.</li>
+      <li><strong>Lawful use only:</strong> You are responsible for ensuring your bot's actions comply with all applicable laws and platform terms (WhatsApp/Telegram).</li>
+      <li><strong>Respect platform limits:</strong> Do not attempt to bypass WhatsApp or Telegram rate limits or automation restrictions.</li>
+      <li><strong>Account security:</strong> You are responsible for keeping your login credentials and bot tokens secure.</li>
+      <li><strong>No resale of access:</strong> Your subscription is for your own use; do not resell or share access to the platform.</li>
+      <li><strong>Fair use:</strong> Excessive or abusive usage may result in rate limiting or account suspension.</li>
+      <li><strong>Founder discretion:</strong> The OmniMod team reserves the right to suspend accounts that violate these rules.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ===== PRIVACY POLICY ===== -->
+<section class="info-section">
+  <div class="info-card">
+    <h2>🔒 Privacy Policy</h2>
+    <p>Your privacy matters to us. Here is how we handle your data:</p>
+    <ul>
+      <li><strong>Account data:</strong> We store your email, name, and password (hashed) to authenticate you. We never share your credentials.</li>
+      <li><strong>Bot credentials:</strong> WhatsApp auth sessions and Telegram bot tokens are stored securely and used only to operate your bots. We do not read or sell your group messages.</li>
+      <li><strong>Activity logs:</strong> We retain moderation logs (e.g. deleted messages, actions taken) so you can monitor your bots. These are visible only to you.</li>
+      <li><strong>Payments:</strong> Payment processing is handled by Stripe. We do not store your full card details.</li>
+      <li><strong>Data deletion:</strong> You can delete your bots and account at any time; associated data is removed.</li>
+      <li><strong>Third parties:</strong> We do not sell or rent your data to third parties.</li>
+    </ul>
+    <p style="margin-top:12px">Questions about your data? <a href="https://wa.me/2349114112326" target="_blank">Message the founder on WhatsApp</a>.</p>
+  </div>
+</section>
+
+<!-- ===== ABOUT THE FOUNDER ===== -->
+<section class="info-section" id="founder">
+  <div class="info-card">
+    <h2>👤 About the Founder</h2>
+    <div class="founder-card">
+      <div class="founder-avatar">👨🏽‍🏫</div>
+      <div class="founder-info">
+        <h3>Daniel Awolola</h3>
+        <div class="founder-title">Founder of ExcelMind Academy & OmniMod</div>
+        <p>Daniel Awolola is the founder of <strong>ExcelMind Academy</strong>, an educational platform dedicated to helping students excel. He created OmniMod to help community managers and educators automate group moderation on WhatsApp and Telegram — so they can focus on teaching and building communities instead of babysitting chat rules.</p>
+        <div class="founder-contact">
+          <a href="https://wa.me/2349114112326?text=Hello%20Daniel%2C%20I%20have%20a%20question%20about%20OmniMod" target="_blank" class="wa-contact-btn">💬 WhatsApp: 09114112326</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SHARE THE APP ===== -->
+<section class="info-section">
+  <div class="info-card" style="text-align:center">
+    <h2>📢 Share OmniMod</h2>
+    <p>Know someone who manages WhatsApp or Telegram groups? Share OmniMod with them!</p>
+    <div class="share-grid" id="share-grid">
+      <button class="share-btn share-wa" onclick="shareApp('wa')">💬 WhatsApp</button>
+      <button class="share-btn share-fb" onclick="shareApp('fb')">📘 Facebook</button>
+      <button class="share-btn share-x" onclick="shareApp('x')">𝕏 X</button>
+      <button class="share-btn share-ig" onclick="shareApp('ig')">📸 Instagram</button>
+      <button class="share-btn share-li" onclick="shareApp('li')">💼 LinkedIn</button>
+      <button class="share-btn share-tg" onclick="shareApp('tg')">✈️ Telegram</button>
+      <button class="share-btn share-copy" onclick="shareApp('copy')">🔗 Copy Link</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== MANUAL PAYMENT ===== -->
+<section class="info-section" id="payment">
+  <div class="payment-card">
+    <h3>💳 Manual Payment (Bank Transfer)</h3>
+    <p style="color:var(--muted);margin-bottom:16px">Prefer to pay directly? Transfer to the account below and send proof of payment on WhatsApp to activate your plan.</p>
+    <div class="payment-detail"><span><strong>Account Name:</strong> Daniel Oluwatimileyin Awolola</span></div>
+    <div class="payment-detail"><span><strong>Account Number:</strong> 9114112326</span><button class="btn btn-outline" style="padding:4px 12px;font-size:12px" onclick="copyAccount()">Copy</button></div>
+    <div class="payment-detail"><span><strong>Bank:</strong> Opay</span></div>
+    <a href="https://wa.me/2349114112326?text=Hello%20Daniel%2C%20I%20just%20made%20a%20payment%20for%20OmniMod.%20Here%20is%20my%20proof%20of%20payment%3A" target="_blank" class="btn btn-primary" style="margin-top:16px">💬 Send Proof on WhatsApp</a>
+  </div>
+</section>
+
 <footer class="footer">
+  <div class="footer-links">
+    <a href="#about">About</a>
+    <a href="#founder">Founder</a>
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#payment">Payment</a>
+  </div>
   <p>OmniMod — WhatsApp & Telegram Group Bot Management. &copy; 2026</p>
+  <p style="margin-top:8px">Built with ❤️ by Daniel Awolola, Founder of ExcelMind Academy</p>
 </footer>
+
+<script>
+const APP_URL=window.location.origin;
+const SHARE_TEXT=encodeURIComponent('Check out OmniMod — manage WhatsApp & Telegram moderation bots from one dashboard! ');
+
+function shareApp(platform){
+  const url=encodeURIComponent(APP_URL);
+  const text=SHARE_TEXT;
+  let shareUrl='';
+  switch(platform){
+    case 'wa': shareUrl=`https://wa.me/?text=${text}${url}`; break;
+    case 'fb': shareUrl=`https://www.facebook.com/sharer/sharer.php?u=${url}`; break;
+    case 'x': shareUrl=`https://twitter.com/intent/tweet?text=${text}&url=${url}`; break;
+    case 'ig': alert('Instagram doesn\\'t support direct link sharing. Copy the link below and paste it in your Instagram bio or story!'); copyAccountLink(); return;
+    case 'li': shareUrl=`https://www.linkedin.com/sharing/share-offsite/?url=${url}`; break;
+    case 'tg': shareUrl=`https://t.me/share/url?url=${url}&text=${text}`; break;
+    case 'copy': copyAccountLink(); return;
+  }
+  if(shareUrl) window.open(shareUrl,'_blank');
+}
+
+function copyAccountLink(){
+  navigator.clipboard.writeText(APP_URL).then(()=>{alert('App link copied to clipboard!');}).catch(()=>{prompt('Copy this link:',APP_URL);});
+}
+
+function copyAccount(){
+  navigator.clipboard.writeText('9114112326').then(()=>{alert('Account number copied!');}).catch(()=>{prompt('Copy account number:','9114112326');});
+}
+</script>
 
 </body>
 </html>
