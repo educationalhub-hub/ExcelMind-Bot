@@ -5,8 +5,8 @@
   "secrets": [
     {
       "name": "PHONE_NUMBER",
-      "description": "WhatsApp phone number for pairing code authentication (include country code, no + or spaces).",
-      "requiredAtBoot": true
+      "description": "Previously used for phone-code pairing. QR pairing no longer requires a phone number.",
+      "requiredAtBoot": false
     }
   ]
 }

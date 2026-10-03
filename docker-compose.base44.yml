@@ -10,9 +10,13 @@ services:
       - /app/node_modules
     env_file:
       - /run/base44/app.env
-    command: ["sh", "-ec", "npm ci && exec npm start"]
+    command: ["sh", "-ec", "npm ci && exec node --watch src/index.js"]
     healthcheck:
-      test: ["CMD", "sh", "-c", "grep -qs 'index.js' /proc/[0-9]*/cmdline 2>/dev/null"]
+      test:
+        - CMD
+        - node
+        - -e
+        - "Promise.all(['/', '/api/pairing'].map(async path => { try { const res = await fetch('http://127.0.0.1:3000' + path, {signal: AbortSignal.timeout(3000)}); if (!res.ok) throw new Error('HTTP ' + res.status); if (path === '/api/pairing' && typeof (await res.json()).status !== 'string') throw new Error('Missing bot status'); } catch (error) { console.error('Pairing service failed at ' + path + ': ' + error.message); process.exitCode = 1; } }));"
       interval: 15s
       timeout: 5s
       retries: 5

@@ -17,6 +17,7 @@
     "@whiskeysockets/baileys": "^6.7.20",
     "dotenv": "^16.6.1",
     "pino": "^9.9.0",
+    "qrcode": "1.5.4",
     "qrcode-terminal": "^0.12.0"
   }
 }

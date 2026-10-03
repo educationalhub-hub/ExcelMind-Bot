@@ -3,15 +3,27 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
-import { Boom } from '@hapi/boom';
 import P from 'pino';
+import { createPairingServer } from './pairingServer.js';
 import {
   containsLink,
   resetLinkRegex,
   isAdmin,
 } from './antiLink.js';
 
-let pairingCodeRequested = false;
+const { server, updatePairing } = createPairingServer();
+server.on('error', (error) => {
+  console.error('❌ QR pairing server failed:', error.message);
+  process.exit(1);
+});
+server.listen(3000, '0.0.0.0', () => {
+  console.log('📱 WhatsApp QR pairing page is ready on port 3000.');
+});
+
+function handleStartError(error) {
+  console.error('❌ ExcelMind-Bot failed to start:', error);
+  updatePairing('error');
+}
 
 async function startBot() {
   const { state, saveCreds } =
@@ -26,54 +38,36 @@ async function startBot() {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr, isNewLogin } = update;
+
+    if (connection === 'connecting' || isNewLogin) {
+      await updatePairing('connecting');
+    }
+
+    if (qr) {
+      try {
+        await updatePairing('scan', qr);
+        console.log('📱 Fresh WhatsApp QR code available in the preview.');
+      } catch (error) {
+        console.error('❌ QR generation failed:', error.message);
+        await updatePairing('error');
+      }
+    }
 
     if (connection === 'open') {
+      await updatePairing('connected');
       console.log('✅ ExcelMind-Bot connected to WhatsApp!');
     }
 
-    if (
-      connection === 'connecting' &&
-      !pairingCodeRequested &&
-      !state.creds.registered
-    ) {
-      pairingCodeRequested = true;
-
-      const phoneNumber = process.env.PHONE_NUMBER;
-
-      if (!phoneNumber) {
-        console.error(
-          'PHONE_NUMBER is missing. Check your local .env file.'
-        );
-        return;
-      }
-
-      setTimeout(async () => {
-        try {
-          const code = await sock.requestPairingCode(phoneNumber);
-          console.log('📱 WhatsApp Pairing Code:');
-          console.log(code);
-        } catch (error) {
-          console.error('❌ Pairing code request failed:', error.message);
-          pairingCodeRequested = false;
-        }
-      }, 3000);
-    }
-
     if (connection === 'close') {
-      const shouldReconnect =
-        lastDisconnect?.error instanceof Boom
-          ? lastDisconnect.error.output.statusCode !==
-            DisconnectReason.loggedOut
-          : true;
-
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      await updatePairing(shouldReconnect ? 'reconnecting' : 'logged_out');
       console.log(`❌ WhatsApp connection closed. (code: ${statusCode})`);
 
       if (shouldReconnect) {
         console.log('🔄 Reconnecting...');
-        pairingCodeRequested = false;
-        setTimeout(() => startBot(), 10000);
+        setTimeout(() => startBot().catch(handleStartError), 10000);
       } else {
         console.log('⚠️ Logged out. Please authenticate again.');
       }
@@ -133,9 +127,4 @@ async function startBot() {
   });
 }
 
-startBot().catch((error) => {
-  console.error(
-    '❌ ExcelMind-Bot failed to start:',
-    error
-  );
-});
+startBot().catch(handleStartError);
