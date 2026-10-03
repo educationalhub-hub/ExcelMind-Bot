@@ -125,6 +125,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
     <button class="nav-tab active" onclick="showView('bots',this)">My Bots</button>
     <button class="nav-tab" onclick="showView('profile',this)">Profile</button>
     <button class="nav-tab" onclick="showView('premium',this)">Premium</button>
+    <button class="nav-tab" onclick="showView('about',this)">About</button>
     <button class="nav-tab" id="admin-tab" hidden onclick="showView('admin',this)">Admin</button>
   </div>
 
@@ -297,6 +298,71 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
     </div>
   </div>
 
+  <!-- ===== ABOUT VIEW ===== -->
+  <div id="view-about" hidden>
+    <div class="card">
+      <h2>ℹ️ About OmniMod</h2>
+      <p style="color:var(--muted);line-height:1.8">OmniMod is a powerful, multi-tenant SaaS platform that lets you create and manage moderation bots for both <strong>WhatsApp</strong> and <strong>Telegram</strong> groups from a single dashboard. Whether you run a study group, a community, or a business channel, OmniMod automates the repetitive work — deleting links, filtering abuse, greeting new members, running quizzes, and opening/closing your groups on schedule.</p>
+      <p style="color:var(--muted);line-height:1.8;margin-top:12px">Built by educators and community managers, OmniMod was created to give group admins their time back. No coding, no servers, no technical headaches — just scan a QR code or paste a bot token and your moderation bot is live.</p>
+    </div>
+    <div class="card">
+      <h2>🔒 Privacy Policy</h2>
+      <ul style="color:var(--muted);line-height:1.8;padding-left:20px">
+        <li><strong>Account data:</strong> We store your email, name, and password (hashed) to authenticate you. We never share your credentials.</li>
+        <li><strong>Bot credentials:</strong> WhatsApp auth sessions and Telegram bot tokens are stored securely and used only to operate your bots.</li>
+        <li><strong>Activity logs:</strong> We retain moderation logs so you can monitor your bots. These are visible only to you.</li>
+        <li><strong>Payments:</strong> Payment processing is handled securely. We do not store your full card details.</li>
+        <li><strong>Data deletion:</strong> You can delete your bots and account at any time; associated data is removed.</li>
+        <li><strong>Third parties:</strong> We do not sell or rent your data to third parties.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>👤 About the Founder</h2>
+      <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+        <div style="font-size:64px;flex-shrink:0">👨🏽‍🏫</div>
+        <div style="flex:1;min-width:260px">
+          <h3 style="font-size:22px;font-weight:800;margin-bottom:4px">Daniel Awolola</h3>
+          <div style="color:var(--primary);font-weight:600;margin-bottom:12px">Founder of ExcelMind Academy & OmniMod</div>
+          <p style="color:var(--muted);line-height:1.8">Daniel Awolola is the founder of <strong>ExcelMind Academy</strong>, an educational platform dedicated to helping students excel. He created OmniMod to help community managers and educators automate group moderation on WhatsApp and Telegram — so they can focus on teaching and building communities instead of babysitting chat rules.</p>
+          <a href="https://wa.me/2349114112326?text=Hello%20Daniel%2C%20I%20have%20a%20question%20about%20OmniMod" target="_blank" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;background:var(--wa);color:#fff;font-weight:700;font-size:15px;margin-top:16px">💬 WhatsApp: 09114112326</a>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>📢 Share OmniMod</h2>
+      <p style="color:var(--muted);margin-bottom:16px">Know someone who manages WhatsApp or Telegram groups? Share OmniMod with them!</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:var(--wa);color:#fff" onclick="shareApp('wa')">💬 WhatsApp</button>
+        <button class="btn btn-sm" style="background:#1877f2;color:#fff" onclick="shareApp('fb')">📘 Facebook</button>
+        <button class="btn btn-sm" style="background:#000;color:#fff" onclick="shareApp('x')">𝕏 X</button>
+        <button class="btn btn-sm" style="background:#e4405f;color:#fff" onclick="shareApp('ig')">📸 Instagram</button>
+        <button class="btn btn-sm" style="background:#0a66c2;color:#fff" onclick="shareApp('li')">💼 LinkedIn</button>
+        <button class="btn btn-sm" style="background:var(--tg);color:#fff" onclick="shareApp('tg')">✈️ Telegram</button>
+        <button class="btn btn-sm btn-outline" onclick="shareApp('copy')">🔗 Copy Link</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>💎 Premium Plans</h2>
+      <p style="color:var(--muted);margin-bottom:16px">Upgrade to unlock more bots and features. Manual payment available via Opay bank transfer.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div style="border:2px solid var(--primary);border-radius:12px;padding:20px;text-align:center">
+          <div style="font-size:18px;font-weight:800;margin-bottom:4px">Pro</div>
+          <div style="font-size:28px;font-weight:800;color:var(--primary)">₦1,500</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px">/ month</div>
+          <div style="font-size:13px;color:var(--muted);text-align:left">✓ Up to 5 bots<br>✓ Anti-link & anti-abuse<br>✓ Quiz system<br>✓ Greeter<br>✗ Schedules locked</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2])">Get Pro</button>
+        </div>
+        <div style="border:2px solid var(--primary-dark);border-radius:12px;padding:20px;text-align:center;background:#eef2ff">
+          <div style="font-size:18px;font-weight:800;margin-bottom:4px">Business</div>
+          <div style="font-size:28px;font-weight:800;color:var(--primary-dark)">₦2,500</div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:12px">/ month</div>
+          <div style="font-size:13px;color:var(--muted);text-align:left">✓ Unlimited bots<br>✓ Everything unlocked<br>✓ Including schedules<br>✓ Priority support</div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2])">Get Business</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== ADMIN VIEW (inline) ===== -->
   <div id="view-admin" hidden>
     <div class="admin-subnav">
@@ -381,10 +447,15 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
 <script>
 let currentBotId=null, pollTimer=null, bots=[], currentUser=null, userPlan='free', currentPlatform='whatsapp';
 const ALL_CAPS=[['moderation','Moderation (anti-abuse)'],['antiLink','Anti-Link'],['announcements','Announcements & Schedules'],['quiz','Quiz System'],['greeter','Greeter (welcome new members)']];
-// Capabilities locked for regular (non-admin) users
-const LOCKED_CAPS=['antiLink','announcements'];
+// Capabilities locked by plan tier
+const FREE_LOCKED_CAPS=['antiLink','announcements'];
 function isAdmin(){return currentUser&&(currentUser.role==='admin'||currentUser.role==='founder');}
-function lockedCaps(){return isAdmin()?[]:LOCKED_CAPS;}
+function lockedCaps(){
+  if(isAdmin()||userPlan==='business') return [];   // everything unlocked
+  if(userPlan==='pro') return [];                     // everything except schedules (schedules gated separately)
+  return FREE_LOCKED_CAPS;                             // free tier
+}
+function canUseSchedules(){return isAdmin()||userPlan==='business';}
 
 // --- Auth ---
 async function checkAuth(){
@@ -561,8 +632,8 @@ function switchTab(tab,el){
   if(tab==='capabilities') loadCapabilities();
   if(tab==='settings') loadSettings();
   if(tab==='schedules'){
-    if(!isAdmin()){
-      document.getElementById('tab-schedules').innerHTML=`<div class="card tab-locked"><div class="lock-icon">🔒</div><h2>Schedules are a Premium Feature</h2><p style="margin:12px 0">Scheduled announcements (auto open/close, morning messages) are locked for standard users.</p><button class="btn btn-primary btn-sm" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2])">Upgrade Plan</button></div>`;
+    if(!canUseSchedules()){
+      document.getElementById('tab-schedules').innerHTML=`<div class="card tab-locked"><div class="lock-icon">🔒</div><h2>Schedules are a Business Feature</h2><p style="margin:12px 0">Scheduled announcements (auto open/close, morning messages) are available on the <strong>Business</strong> plan only. Pro unlocks everything else.</p><button class="btn btn-primary btn-sm" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2])">Upgrade to Business</button></div>`;
     } else { loadSchedules(); }
   }
   if(tab==='quiz') loadQuiz();
@@ -632,8 +703,9 @@ async function loadCapabilities(){
     return `<div class="cap-item ${isLocked?'cap-locked':''}"><input type="checkbox" id="cap-${key}" ${caps[key]?'checked':''} ${isLocked?'disabled':''}><label for="cap-${key}">${label} ${isLocked?'🔒':''}</label></div>`;
   }).join('');
   const hint=document.getElementById('cap-upgrade-hint');
-  hint.hidden=isAdmin();
-  if(!isAdmin())hint.innerHTML='🔒 Anti-Link and Schedules are premium features. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade your plan</a> or contact the admin to unlock them.';
+  hint.hidden=(isAdmin()||userPlan==='pro'||userPlan==='business');
+  if(userPlan==='free')hint.innerHTML='🔒 Anti-Link and Announcements are locked on the Free plan. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade to Pro (₦1,500/mo)</a> to unlock them.';
+  else if(userPlan==='pro')hint.innerHTML='🔒 Schedules are a Business feature. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade to Business (₦2,500/mo)</a> to unlock them.';
 }
 async function saveCapabilities(){
   const caps={};
@@ -756,13 +828,13 @@ async function loadPlans(){
       const price=p.maxBots==='Unlimited'?'Unlimited bots':`${p.maxBots} bot${p.maxBots!==1?'s':''}`;
       return `<div class="plan-card ${isCurrent?'current':''}">
         <div><div class="plan-name">${p.name}</div><div class="plan-features-list">${p.features.join(' • ')}</div></div>
-        <div style="text-align:center">${p.id==='free'?'<div class="plan-price">$0</div>':`<div class="plan-price">$${p.id==='pro'?'9':'29'}</div><div style="font-size:13px;color:var(--muted)">/ month</div>`}
+        <div style="text-align:center">${p.id==='free'?'<div class="plan-price">₦0</div>':`<div class="plan-price">₦${p.id==='pro'?'1,500':'2,500'}</div><div style="font-size:13px;color:var(--muted)">/ month</div>`}
         ${isCurrent?'<div style="margin-top:8px"><span class="badge s-connected">Current Plan</span></div>':`<button class="btn ${p.id==='free'?'btn-outline':'btn-primary'} btn-sm" style="margin-top:8px" onclick="upgradePlan('${p.id}')">${p.id==='free'?'Downgrade':'Upgrade'}</button>`}
         </div></div>`;
     }).join('');
   }catch{}
 }
-function config_plans(id){const plans={'free':{features:['1 bot','Anti-link','Basic dashboard']},'pro':{features:['5 bots','All features','Quiz','Greeter']},'business':{features:['Unlimited bots','All features','Priority support']}};return plans[id];}
+function config_plans(id){const plans={'free':{features:['1 bot','Anti-link','Basic dashboard']},'pro':{features:['Up to 5 bots','Everything except schedules','Quiz','Greeter','Anti-link & anti-abuse']},'business':{features:['Unlimited bots','Everything unlocked','Schedules included','Priority support']}};return plans[id];}
 async function upgradePlan(planId){
   if(planId==='free'){alert('You can downgrade to Free from your Stripe subscription dashboard.');return;}
   try{
@@ -771,6 +843,23 @@ async function upgradePlan(planId){
     if(data.error){alert(data.error);return;}
     if(data.url)window.location.href=data.url;
   }catch{alert('Failed to start checkout. Make sure Stripe is configured.');}
+}
+
+// --- Share (About tab) ---
+async function shareApp(platform){
+  const url=encodeURIComponent(window.location.origin);
+  const text=encodeURIComponent('Check out OmniMod — manage WhatsApp & Telegram moderation bots from one dashboard! ');
+  let shareUrl='';
+  switch(platform){
+    case 'wa': shareUrl=`https://wa.me/?text=${text}${url}`; break;
+    case 'fb': shareUrl=`https://www.facebook.com/sharer/sharer.php?u=${url}`; break;
+    case 'x': shareUrl=`https://twitter.com/intent/tweet?text=${text}&url=${url}`; break;
+    case 'ig': alert("Instagram doesn't support direct link sharing. Copy the link below and paste it in your bio or story!"); navigator.clipboard.writeText(window.location.origin).then(()=>alert('Link copied!')); return;
+    case 'li': shareUrl=`https://www.linkedin.com/sharing/share-offsite/?url=${url}`; break;
+    case 'tg': shareUrl=`https://t.me/share/url?url=${url}&text=${text}`; break;
+    case 'copy': navigator.clipboard.writeText(window.location.origin).then(()=>alert('App link copied to clipboard!')).catch(()=>prompt('Copy this link:',window.location.origin)); return;
+  }
+  if(shareUrl) window.open(shareUrl,'_blank');
 }
 
 // --- Logout ---

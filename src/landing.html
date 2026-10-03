@@ -137,26 +137,26 @@ a{color:var(--primary);text-decoration:none}
     <div class="price-card featured">
       <div class="price-badge">Most Popular</div>
       <div class="price-name">Pro</div>
-      <div class="price-amount">$9</div>
+      <div class="price-amount">₦1,500</div>
       <div class="price-period">/ month</div>
       <ul class="price-features">
         <li>Up to 5 bots</li>
         <li>Anti-link & anti-abuse</li>
-        <li>Scheduled announcements</li>
         <li>Quiz system</li>
-        <li>Greeter & group controls</li>
+        <li>Greeter</li>
+        <li>Everything except schedules</li>
       </ul>
       <a href="/signup" class="btn btn-primary">Get Pro</a>
     </div>
     <div class="price-card">
       <div class="price-name">Business</div>
-      <div class="price-amount">$29</div>
+      <div class="price-amount">₦2,500</div>
       <div class="price-period">/ month</div>
       <ul class="price-features">
         <li>Unlimited bots</li>
-        <li>All Pro features</li>
+        <li>Everything unlocked</li>
+        <li>Scheduled announcements</li>
         <li>Priority support</li>
-        <li>Custom roles</li>
       </ul>
       <a href="/signup" class="btn btn-outline">Get Business</a>
     </div>
@@ -277,7 +277,7 @@ function shareApp(platform){
     case 'wa': shareUrl=`https://wa.me/?text=${text}${url}`; break;
     case 'fb': shareUrl=`https://www.facebook.com/sharer/sharer.php?u=${url}`; break;
     case 'x': shareUrl=`https://twitter.com/intent/tweet?text=${text}&url=${url}`; break;
-    case 'ig': alert('Instagram doesn\\'t support direct link sharing. Copy the link below and paste it in your Instagram bio or story!'); copyAccountLink(); return;
+    case 'ig': alert("Instagram doesn't support direct link sharing. Copy the link below and paste it in your Instagram bio or story!"); copyAccountLink(); return;
     case 'li': shareUrl=`https://www.linkedin.com/sharing/share-offsite/?url=${url}`; break;
     case 'tg': shareUrl=`https://t.me/share/url?url=${url}&text=${text}`; break;
     case 'copy': copyAccountLink(); return;
