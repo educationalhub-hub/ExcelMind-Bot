@@ -10,7 +10,7 @@ services:
       - /app/node_modules
     env_file:
       - /run/base44/app.env
-    command: ["sh", "-ec", "npm ci && exec npm run dev"]
+    command: ["sh", "-ec", "npm ci && exec npm start"]
     healthcheck:
       test: ["CMD", "sh", "-c", "grep -qs 'index.js' /proc/[0-9]*/cmdline 2>/dev/null"]
       interval: 15s

@@ -5,12 +5,13 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import P from 'pino';
-import qrcode from 'qrcode-terminal';
 import {
   containsLink,
   resetLinkRegex,
   isAdmin,
 } from './antiLink.js';
+
+let pairingCodeRequested = false;
 
 async function startBot() {
   const { state, saveCreds } =
@@ -19,31 +20,46 @@ async function startBot() {
   const sock = makeWASocket({
     auth: state,
     logger: P({ level: 'silent' }),
+    printQRInTerminal: false,
   });
 
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (update) => {
-  const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect } = update;
 
-  if (connection === 'open') {
-    console.log('✅ ExcelMind-Bot connected to WhatsApp!');
+    if (connection === 'open') {
+      console.log('✅ ExcelMind-Bot connected to WhatsApp!');
+    }
 
-    if (!state.creds.registered) {
+    if (
+      connection === 'connecting' &&
+      !pairingCodeRequested &&
+      !state.creds.registered
+    ) {
+      pairingCodeRequested = true;
+
       const phoneNumber = process.env.PHONE_NUMBER;
 
       if (!phoneNumber) {
-        throw new Error(
+        console.error(
           'PHONE_NUMBER is missing. Check your local .env file.'
         );
+        return;
       }
 
-      const code = await sock.requestPairingCode(phoneNumber);
-
-      console.log('📱 WhatsApp Pairing Code:');
-      console.log(code);
+      setTimeout(async () => {
+        try {
+          const code = await sock.requestPairingCode(phoneNumber);
+          console.log('📱 WhatsApp Pairing Code:');
+          console.log(code);
+        } catch (error) {
+          console.error('❌ Pairing code request failed:', error.message);
+          pairingCodeRequested = false;
+        }
+      }, 3000);
     }
-  }
+
     if (connection === 'close') {
       const shouldReconnect =
         lastDisconnect?.error instanceof Boom
@@ -51,11 +67,12 @@ async function startBot() {
             DisconnectReason.loggedOut
           : true;
 
-      console.log('❌ WhatsApp connection closed.');
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      console.log(`❌ WhatsApp connection closed. (code: ${statusCode})`);
 
       if (shouldReconnect) {
         console.log('🔄 Reconnecting...');
-        startBot();
+        setTimeout(() => startBot(), 10000);
       } else {
         console.log('⚠️ Logged out. Please authenticate again.');
       }
