@@ -6,238 +6,99 @@
     <title>ExcelMind-Bot Dashboard</title>
     <style>
       :root {
-        --primary: #14754e;
-        --bg: #f0f5f3;
-        --card: #fff;
-        --text: #18372c;
-        --muted: #52695e;
-        --border: #dce8e1;
-        --accent: #0d9668;
-        --danger: #dc2626;
+        --primary: #14754e; --bg: #f0f5f3; --card: #fff; --text: #18372c;
+        --muted: #52695e; --border: #dce8e1; --accent: #0d9668; --danger: #dc2626;
         --radius: 16px;
       }
       * { box-sizing: border-box; }
       body {
-        margin: 0;
-        min-height: 100vh;
-        background: var(--bg);
-        color: var(--text);
-        font: 16px/1.6 system-ui, -apple-system, sans-serif;
-        padding: 20px;
+        margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+        font: 16px/1.6 system-ui, -apple-system, sans-serif; padding: 20px;
       }
       .container { max-width: 900px; margin: 0 auto; }
 
-      /* Header */
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 0;
-        margin-bottom: 8px;
-      }
+      .header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; margin-bottom: 8px; gap: 12px; }
       .header h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
       .bot-id { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
-      .status-badge {
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        white-space: nowrap;
-      }
+      .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; }
       .s-connected { background: #d1fae5; color: #065f46; }
       .s-connecting, .s-scan, .s-reconnecting { background: #fef3c7; color: #92400e; }
       .s-error, .s-logged_out { background: #fee2e2; color: #991b1b; }
       .s-waiting { background: #e5e7eb; color: #374151; }
 
-      /* Cards */
-      .card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 20px;
-        margin-bottom: 16px;
-      }
+      .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
       .card h2 { margin: 0 0 16px; font-size: 18px; }
 
-      /* QR section */
-      .qr-area {
-        min-height: 280px;
-        display: grid;
-        place-items: center;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 12px;
-        text-align: center;
-      }
+      .bot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+      .bot-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; cursor: pointer; transition: box-shadow .2s, transform .1s; }
+      .bot-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,.08); transform: translateY(-2px); }
+      .bot-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+      .bot-number { font-size: 18px; font-weight: 700; }
+      .bot-card-role { display: inline-block; padding: 3px 10px; border-radius: 6px; background: #e6f4ea; color: var(--primary); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+
+      .qr-area { min-height: 280px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
       #qr { width: min(100%, 320px); height: auto; display: block; }
       [hidden] { display: none !important; }
       .qr-placeholder { padding: 20px; color: var(--muted); }
       ol { margin: 12px 0 0; padding-left: 24px; }
       li { padding: 3px 0; }
 
-      /* Stats */
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        margin-bottom: 16px;
-      }
-      .stat-card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-      }
+      .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+      .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }
       .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
       .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 
-      /* Section header */
-      .section-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-      }
+      .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
       .section-head h2 { margin: 0; }
 
-      /* Groups table */
       .groups-table { width: 100%; }
-      .groups-table th, .groups-table td {
-        padding: 10px 8px;
-        text-align: left;
-        border-bottom: 1px solid var(--border);
-        font-size: 14px;
-      }
+      .groups-table th, .groups-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; }
       .groups-table th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-      .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-      }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
       .badge-yes { background: #d1fae5; color: #065f46; }
       .badge-no { background: #f3f4f6; color: #9ca3af; }
+      .lock-btn { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: white; color: var(--text); cursor: pointer; }
+      .lock-btn:hover { background: #f0f5f3; }
 
-      /* Per-group toggle in table */
-      .group-toggle {
-        position: relative;
-        width: 40px;
-        height: 22px;
-        appearance: none;
-        background: #d1d5db;
-        border-radius: 11px;
-        cursor: pointer;
-        transition: background .2s;
-        flex-shrink: 0;
-      }
+      .group-toggle { position: relative; width: 40px; height: 22px; appearance: none; background: #d1d5db; border-radius: 11px; cursor: pointer; transition: background .2s; flex-shrink: 0; }
       .group-toggle:checked { background: var(--accent); }
-      .group-toggle::after {
-        content: '';
-        position: absolute;
-        top: 2px; left: 2px;
-        width: 18px; height: 18px;
-        background: white;
-        border-radius: 50%;
-        transition: transform .2s;
-      }
+      .group-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: transform .2s; }
       .group-toggle:checked::after { transform: translateX(18px); }
       .group-toggle:disabled { opacity: .4; cursor: not-allowed; }
       .group-row { transition: background .15s; }
       .group-row.off { opacity: .6; }
 
-      /* Activity log */
       .log-list { max-height: 300px; overflow-y: auto; }
-      .log-entry {
-        padding: 10px 0;
-        border-bottom: 1px solid var(--border);
-        font-size: 14px;
-      }
+      .log-entry { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
       .log-entry:last-child { border-bottom: none; }
       .log-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
       .log-action { font-weight: 600; }
 
-      /* Forms */
       .form-group { margin-bottom: 16px; }
       .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
-      input[type="text"], textarea, select {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        font: inherit;
-        background: white;
+      input[type="text"], input[type="time"], textarea, select {
+        width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; background: white;
       }
       textarea { resize: vertical; }
+      .form-row { display: flex; gap: 12px; }
+      .form-row .form-group { flex: 1; }
 
-      /* Toggle */
-      .toggle-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 0;
-      }
+      .toggle-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
       .toggle-row label { font-size: 14px; }
-      .toggle {
-        position: relative;
-        width: 44px;
-        height: 24px;
-        appearance: none;
-        background: #d1d5db;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: background .2s;
-        flex-shrink: 0;
-      }
+      .toggle { position: relative; width: 44px; height: 24px; appearance: none; background: #d1d5db; border-radius: 12px; cursor: pointer; transition: background .2s; flex-shrink: 0; }
       .toggle:checked { background: var(--accent); }
-      .toggle::after {
-        content: '';
-        position: absolute;
-        top: 2px; left: 2px;
-        width: 20px; height: 20px;
-        background: white;
-        border-radius: 50%;
-        transition: transform .2s;
-      }
+      .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform .2s; }
       .toggle:checked::after { transform: translateX(20px); }
 
-      /* Buttons */
-      button {
-        padding: 10px 20px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font: inherit;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background .2s;
-      }
+      button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; transition: background .2s; }
       button:hover { background: var(--accent); }
-      button.secondary {
-        background: white;
-        color: var(--primary);
-        border: 1px solid var(--primary);
-        padding: 6px 14px;
-        font-size: 13px;
-      }
+      button.secondary { background: white; color: var(--primary); border: 1px solid var(--primary); padding: 6px 14px; font-size: 13px; }
       button.secondary:hover { background: #f0f5f3; }
+      button.danger { background: white; color: var(--danger); border: 1px solid var(--danger); padding: 6px 14px; font-size: 13px; }
+      button.danger:hover { background: #fef2f2; }
       button:disabled { opacity: .5; cursor: not-allowed; }
 
-      /* Toast */
-      .toast {
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        z-index: 100;
-        opacity: 0;
-        transition: opacity .3s;
-      }
+      .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 24px; border-radius: 8px; font-weight: 600; z-index: 100; opacity: 0; transition: opacity .3s; }
       .toast.show { opacity: 1; }
       .toast.success { background: #d1fae5; color: #065f46; }
       .toast.error { background: #fee2e2; color: #991b1b; }
@@ -248,106 +109,201 @@
       @media (max-width: 600px) {
         .stats { grid-template-columns: 1fr; }
         .header { flex-direction: column; gap: 8px; align-items: flex-start; }
+        .form-row { flex-direction: column; }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <header class="header">
-        <div>
-          <h1>📊 ExcelMind-Bot</h1>
-          <p id="bot-number" class="bot-id" hidden></p>
-        </div>
-        <span id="status-badge" class="status-badge s-waiting">Waiting…</span>
-      </header>
-
-      <!-- QR Pairing (shown when not connected) -->
-      <div id="qr-section" class="card">
-        <h2>Connect with QR Scan</h2>
-        <div class="qr-area">
-          <img id="qr" alt="WhatsApp QR code" hidden>
-          <p id="qr-placeholder" class="qr-placeholder">Waiting for WhatsApp to generate a QR code…</p>
-        </div>
-        <p id="qr-status" class="muted">Connecting to WhatsApp…</p>
-        <ol>
-          <li>Open <strong>WhatsApp</strong> on your phone.</li>
-          <li>Go to <strong>Settings</strong> → <strong>Linked devices</strong>.</li>
-          <li>Tap <strong>Link a device</strong> and scan the code above.</li>
-        </ol>
-      </div>
-
-      <!-- Dashboard (shown when connected) -->
-      <div id="dashboard" hidden>
-        <div class="stats">
-          <div class="stat-card">
-            <div class="stat-value" id="stat-groups">0</div>
-            <div class="stat-label">Total Groups</div>
+      <!-- ================= HOME VIEW ================= -->
+      <div id="home-view">
+        <header class="header">
+          <div>
+            <h1>🤖 ExcelMind-Bot Manager</h1>
+            <p class="bot-id">Select a bot to manage, or add a new one</p>
           </div>
-          <div class="stat-card">
-            <div class="stat-value" id="stat-admin">0</div>
-            <div class="stat-label">Admin In</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value" id="stat-actions">0</div>
-            <div class="stat-label">Actions Logged</div>
-          </div>
+        </header>
+        <div id="bot-cards" class="bot-grid">
+          <p class="empty">Loading bots…</p>
         </div>
-
-        <!-- Groups -->
         <div class="card">
-          <div class="section-head">
-            <h2>Groups</h2>
-            <button class="secondary" id="refresh-groups">↻ Refresh</button>
-          </div>
-          <div id="groups-container">
-            <p class="muted">Loading groups…</p>
-          </div>
-        </div>
-
-        <!-- Activity -->
-        <div class="card">
-          <h2>Recent Activity</h2>
-          <div class="log-list" id="activity-container">
-            <p class="empty">No activity yet.</p>
-          </div>
-        </div>
-
-        <!-- Settings -->
-        <div class="card">
-          <h2>Moderation Settings</h2>
-          <form id="settings-form">
-            <div class="toggle-row">
-              <input type="checkbox" class="toggle" id="anti-link" checked>
-              <label for="anti-link">Anti-Link — delete links from non-admins</label>
-            </div>
-            <div class="toggle-row">
-              <input type="checkbox" class="toggle" id="anti-abuse" checked>
-              <label for="anti-abuse">Anti-Abuse — delete abusive words from non-admins</label>
+          <h2>Add New Bot</h2>
+          <form id="add-bot-form">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="new-bot-number">Phone Number</label>
+                <input type="text" id="new-bot-number" placeholder="e.g., 2349114112326" required>
+              </div>
+              <div class="form-group">
+                <label for="new-bot-role">Role</label>
+                <select id="new-bot-role">
+                  <option>Moderator</option>
+                  <option>Guard</option>
+                  <option>Announcer</option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
-              <label for="abusive-words">Abusive words (comma-separated)</label>
-              <textarea id="abusive-words" rows="3" placeholder="fuck, shit, idiot…"></textarea>
+              <label for="new-bot-name">Display Name (blank = keep current WhatsApp name)</label>
+              <input type="text" id="new-bot-name" placeholder="e.g., Bot">
             </div>
-            <button type="submit">Save Settings</button>
+            <button type="submit">Add Bot</button>
           </form>
         </div>
+      </div>
 
-        <!-- Send Instruction -->
+      <!-- ================= BOT DASHBOARD VIEW ================= -->
+      <div id="bot-view" hidden>
+        <header class="header">
+          <div>
+            <button class="secondary" id="back-btn">← Back</button>
+            <h1 id="bot-title" style="margin-top:8px;">📊 Bot Dashboard</h1>
+            <p id="bot-info" class="bot-id"></p>
+          </div>
+          <span id="status-badge" class="status-badge s-waiting">Waiting…</span>
+        </header>
+
+        <!-- Bot Configuration -->
         <div class="card">
-          <h2>Send Instruction</h2>
-          <form id="instruction-form">
+          <h2>Bot Configuration</h2>
+          <div class="form-row">
             <div class="form-group">
-              <label for="instruction-group">Send to</label>
-              <select id="instruction-group">
-                <option value="all">All groups where bot is admin</option>
+              <label for="bot-role">Role</label>
+              <select id="bot-role">
+                <option>Moderator</option>
+                <option>Guard</option>
+                <option>Announcer</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="instruction-message">Message</label>
-              <textarea id="instruction-message" rows="3" placeholder="Type a message to send to the group(s)…"></textarea>
+              <label for="bot-name">Display Name (blank = keep current name)</label>
+              <input type="text" id="bot-name" placeholder="e.g., Bot">
             </div>
-            <button type="submit" id="send-instruction">Send</button>
-          </form>
+          </div>
+          <button id="save-config">Save Configuration</button>
+          <button class="danger" id="remove-bot-btn" style="margin-left:8px;">Remove Bot</button>
+        </div>
+
+        <!-- QR Pairing -->
+        <div id="qr-section" class="card">
+          <h2>Connect with QR Scan</h2>
+          <div class="qr-area">
+            <img id="qr" alt="WhatsApp QR code" hidden>
+            <p id="qr-placeholder" class="qr-placeholder">Waiting for WhatsApp to generate a QR code…</p>
+          </div>
+          <p id="qr-status" class="muted">Connecting to WhatsApp…</p>
+          <ol>
+            <li>Open <strong>WhatsApp</strong> on your phone.</li>
+            <li>Go to <strong>Settings</strong> → <strong>Linked devices</strong>.</li>
+            <li>Tap <strong>Link a device</strong> and scan the code above.</li>
+          </ol>
+        </div>
+
+        <!-- Dashboard (connected) -->
+        <div id="dashboard" hidden>
+          <div class="stats">
+            <div class="stat-card"><div class="stat-value" id="stat-groups">0</div><div class="stat-label">Total Groups</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-admin">0</div><div class="stat-label">Admin In</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-actions">0</div><div class="stat-label">Actions Logged</div></div>
+          </div>
+
+          <!-- Groups -->
+          <div class="card">
+            <div class="section-head">
+              <h2>Groups</h2>
+              <button class="secondary" id="refresh-groups">↻ Refresh</button>
+            </div>
+            <div id="groups-container"><p class="muted">Loading groups…</p></div>
+          </div>
+
+          <!-- Schedules -->
+          <div class="card">
+            <h2>Group Schedule & Morning Message</h2>
+            <form id="schedules-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="schedule-open">Open Time (unlock groups)</label>
+                  <input type="time" id="schedule-open">
+                </div>
+                <div class="form-group">
+                  <label for="schedule-close">Close Time (lock groups)</label>
+                  <input type="time" id="schedule-close">
+                </div>
+                <div class="form-group">
+                  <label for="schedule-morning">Morning Message Time</label>
+                  <input type="time" id="schedule-morning">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="morning-message">Morning Message</label>
+                <textarea id="morning-message" rows="2" placeholder="Message to send when the group opens…"></textarea>
+              </div>
+              <button type="submit">Save Schedule</button>
+            </form>
+          </div>
+
+          <!-- Rules & Regulations -->
+          <div class="card">
+            <h2>Rules & Regulations</h2>
+            <form id="rules-form">
+              <div class="form-group">
+                <label for="rules-message">Rules Message</label>
+                <textarea id="rules-message" rows="6" placeholder="Group rules and regulations…"></textarea>
+              </div>
+              <div class="form-group">
+                <label for="rules-group">Send Rules To</label>
+                <select id="rules-group">
+                  <option value="all">All groups where bot is admin</option>
+                </select>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="submit" id="save-rules-btn">Save Rules</button>
+                <button type="button" id="send-rules-btn" class="secondary">Send Rules to Group(s)</button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Activity -->
+          <div class="card">
+            <h2>Recent Activity</h2>
+            <div class="log-list" id="activity-container"><p class="empty">No activity yet.</p></div>
+          </div>
+
+          <!-- Settings -->
+          <div class="card">
+            <h2>Moderation Settings</h2>
+            <form id="settings-form">
+              <div class="toggle-row">
+                <input type="checkbox" class="toggle" id="anti-link" checked>
+                <label for="anti-link">Anti-Link — delete links from non-admins</label>
+              </div>
+              <div class="toggle-row">
+                <input type="checkbox" class="toggle" id="anti-abuse" checked>
+                <label for="anti-abuse">Anti-Abuse — delete abusive words from non-admins</label>
+              </div>
+              <div class="form-group">
+                <label for="abusive-words">Abusive words (comma-separated)</label>
+                <textarea id="abusive-words" rows="3" placeholder="fuck, shit, idiot…"></textarea>
+              </div>
+              <button type="submit">Save Settings</button>
+            </form>
+          </div>
+
+          <!-- Send Instruction -->
+          <div class="card">
+            <h2>Send Instruction</h2>
+            <form id="instruction-form">
+              <div class="form-group">
+                <label for="instruction-group">Send to</label>
+                <select id="instruction-group"><option value="all">All groups where bot is admin</option></select>
+              </div>
+              <div class="form-group">
+                <label for="instruction-message">Message</label>
+                <textarea id="instruction-message" rows="3" placeholder="Type a message to send…"></textarea>
+              </div>
+              <button type="submit" id="send-instruction">Send</button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -355,111 +311,184 @@
     <div id="toast" class="toast"></div>
 
     <script>
-      const statusBadge = document.getElementById('status-badge');
-      const botNumberEl = document.getElementById('bot-number');
-      const qrSection = document.getElementById('qr-section');
-      const dashboardEl = document.getElementById('dashboard');
-      const qrImage = document.getElementById('qr');
-      const qrPlaceholder = document.getElementById('qr-placeholder');
-      const qrStatus = document.getElementById('qr-status');
-
+      const ROLES = ['Moderator', 'Guard', 'Announcer'];
       const statusLabels = {
-        waiting: 'Waiting…',
-        connecting: 'Connecting…',
-        scan: 'Ready to scan',
-        connected: '● Connected',
-        reconnecting: 'Reconnecting…',
-        logged_out: 'Logged out',
-        error: 'Error',
+        waiting: 'Waiting…', connecting: 'Connecting…', scan: 'Ready to scan',
+        connected: '● Connected', reconnecting: 'Reconnecting…',
+        logged_out: 'Logged out', error: 'Error',
       };
-
       const qrMessages = {
-        waiting: 'Waiting for a fresh QR code…',
-        connecting: 'Connecting to WhatsApp…',
-        scan: 'Ready to scan · QR refreshes automatically',
-        connected: '✓ WhatsApp connected',
+        waiting: 'Waiting for a fresh QR code…', connecting: 'Connecting to WhatsApp…',
+        scan: 'Ready to scan · QR refreshes automatically', connected: '✓ WhatsApp connected',
         reconnecting: 'Reconnecting… a fresh QR will appear shortly.',
-        logged_out: 'Logged out. Restart the bot to link again.',
-        error: 'Unable to generate a QR code.',
+        logged_out: 'Logged out. Restart the bot to link again.', error: 'Unable to generate a QR code.',
+      };
+      const actionLabels = {
+        link_deleted: '🗑️ Link deleted', abuse_deleted: '🗑️ Abuse deleted',
+        user_muted: '🔇 User muted', user_unmuted: '🔊 User unmuted',
+        instruction_sent: '📤 Instruction sent', instruction_broadcast: '📢 Broadcast sent',
+        instruction_error: '❌ Instruction failed', settings_update: '⚙️ Settings updated',
+        bot_connected: '✅ Bot connected', groups_refreshed: '🔄 Groups refreshed',
+        group_toggled: '🔀 Group moderation toggled', profile_name_set: '🏷️ Profile name set',
+        morning_message: '🌅 Morning message sent', groups_opened: '🔓 Groups opened',
+        groups_closed: '🔒 Groups closed', group_locked: '🔒 Group locked',
+        group_unlocked: '🔓 Group unlocked', schedules_updated: '⏰ Schedules updated',
       };
 
+      let currentBotId = null;
       let currentSettings = null;
+      let currentGroupSettings = {};
+      let pollTimer = null;
 
+      // --- Helpers ---
+      function escapeHtml(text) { const d = document.createElement('div'); d.textContent = String(text || ''); return d.innerHTML; }
       function showToast(msg, type = 'success') {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.className = 'toast ' + type + ' show';
-        setTimeout(() => toast.classList.remove('show'), 3000);
+        const t = document.getElementById('toast');
+        t.textContent = msg; t.className = 'toast ' + type + ' show';
+        setTimeout(() => t.classList.remove('show'), 3000);
+      }
+      function api(path, opts) { return fetch('/api/bots/' + currentBotId + path, opts); }
+
+      // --- Routing ---
+      function getBotIdFromHash() { return window.location.hash.slice(1) || null; }
+      function navigate(botId) { window.location.hash = botId || ''; }
+
+      window.addEventListener('hashchange', () => {
+        const id = getBotIdFromHash();
+        if (id) showBotView(id);
+        else showHome();
+      });
+
+      // --- Home view ---
+      async function showHome() {
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+        document.getElementById('home-view').hidden = false;
+        document.getElementById('bot-view').hidden = true;
+        try {
+          const res = await fetch('/api/bots', { cache: 'no-store' });
+          const bots = await res.json();
+          renderBotCards(bots);
+        } catch { document.getElementById('bot-cards').innerHTML = '<p class="empty">Failed to load bots.</p>'; }
       }
 
-      function setStatus(status, qr, botNumber) {
-        statusBadge.textContent = statusLabels[status] || status;
-        statusBadge.className = 'status-badge s-' + status;
+      function renderBotCards(bots) {
+        const c = document.getElementById('bot-cards');
+        if (!bots.length) { c.innerHTML = '<p class="empty">No bots yet. Add one below.</p>'; return; }
+        c.innerHTML = bots.map(b => {
+          const cls = 's-' + b.connection;
+          const label = statusLabels[b.connection] || b.connection;
+          let html = '<div class="bot-card" data-id="' + b.id + '">';
+          html += '<div class="bot-card-header"><span class="bot-number">+' + b.number + '</span>';
+          html += '<span class="status-badge ' + cls + '">' + label + '</span></div>';
+          html += '<div class="bot-card-role">' + escapeHtml(b.role) + '</div>';
+          if (b.displayName) html += '<div class="muted">Display: ' + escapeHtml(b.displayName) + '</div>';
+          if (b.botNumber) html += '<div class="muted">Connected: ' + escapeHtml(b.botNumber.split('@')[0]) + '</div>';
+          html += '</div>';
+          return html;
+        }).join('');
+        c.querySelectorAll('.bot-card').forEach(card => {
+          card.addEventListener('click', () => navigate(card.dataset.id));
+        });
+      }
 
-        const isConnected = status === 'connected';
-        qrSection.hidden = isConnected;
-        dashboardEl.hidden = !isConnected;
-
-        if (botNumber) {
-          botNumberEl.hidden = false;
-          botNumberEl.textContent = 'Bot: ' + botNumber.split('@')[0];
-        }
-
-        if (!isConnected) {
-          qrStatus.textContent = qrMessages[status] || qrMessages.waiting;
-          if (qr) {
-            qrImage.hidden = false;
-            qrPlaceholder.hidden = true;
-            if (qrImage.src !== qr) qrImage.src = qr;
+      // Add bot form
+      document.getElementById('add-bot-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const number = document.getElementById('new-bot-number').value.replace(/\D/g, '');
+        const role = document.getElementById('new-bot-role').value;
+        const displayName = document.getElementById('new-bot-name').value.trim() || null;
+        if (!number) { showToast('Enter a phone number', 'error'); return; }
+        try {
+          const res = await fetch('/api/bots', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ number, role, displayName }),
+          });
+          if (res.ok) {
+            const bot = await res.json();
+            showToast('Bot added — scan QR to connect');
+            document.getElementById('new-bot-number').value = '';
+            document.getElementById('new-bot-name').value = '';
+            navigate(bot.id);
           } else {
-            qrImage.hidden = true;
-            qrPlaceholder.hidden = false;
-            qrPlaceholder.textContent = qrMessages[status] || qrMessages.waiting;
+            const err = await res.json();
+            showToast(err.error || 'Failed to add', 'error');
+          }
+        } catch { showToast('Network error', 'error'); }
+      });
+
+      // --- Bot dashboard view ---
+      async function showBotView(botId) {
+        currentBotId = botId;
+        currentSettings = null;
+        document.getElementById('home-view').hidden = true;
+        document.getElementById('bot-view').hidden = false;
+        pollBot();
+      }
+
+      function setStatus(status) {
+        const badge = document.getElementById('status-badge');
+        badge.textContent = statusLabels[status.connection] || status.connection;
+        badge.className = 'status-badge s-' + status.connection;
+        const connected = status.connection === 'connected';
+        document.getElementById('qr-section').hidden = connected;
+        document.getElementById('dashboard').hidden = !connected;
+
+        const info = document.getElementById('bot-info');
+        info.textContent = '+' + status.number + ' · ' + (status.role || 'Moderator');
+        if (status.displayName) info.textContent += ' · Display: ' + status.displayName;
+        if (status.botNumber) info.textContent += ' · Connected: ' + status.botNumber.split('@')[0];
+
+        document.getElementById('bot-title').textContent = '📊 +' + status.number;
+
+        // Set config form values
+        document.getElementById('bot-role').value = status.role || 'Moderator';
+        document.getElementById('bot-name').value = status.displayName || '';
+
+        if (!connected) {
+          const qs = document.getElementById('qr-status');
+          qs.textContent = qrMessages[status.connection] || qrMessages.waiting;
+          const qr = document.getElementById('qr');
+          const ph = document.getElementById('qr-placeholder');
+          if (status.qr) {
+            qr.hidden = false; ph.hidden = true;
+            if (qr.src !== status.qr) qr.src = status.qr;
+          } else {
+            qr.hidden = true; ph.hidden = false;
+            ph.textContent = qrMessages[status.connection] || qrMessages.waiting;
           }
         }
       }
-
-      let currentGroupSettings = {};
 
       function renderGroups(groups) {
-        const container = document.getElementById('groups-container');
-        if (!groups.length) {
-          container.innerHTML = '<p class="empty">No groups found. Make sure the bot is added to groups.</p>';
-          return;
-        }
-        const adminCount = groups.filter((g) => g.isAdmin).length;
+        const c = document.getElementById('groups-container');
+        if (!groups.length) { c.innerHTML = '<p class="empty">No groups found. Make sure the bot is added to groups.</p>'; return; }
         document.getElementById('stat-groups').textContent = groups.length;
-        document.getElementById('stat-admin').textContent = adminCount;
-
-        let html = '<table class="groups-table"><thead><tr><th>Group Name</th><th>Members</th><th>Bot Admin?</th><th>Moderation</th></tr></thead><tbody>';
+        document.getElementById('stat-admin').textContent = groups.filter(g => g.isAdmin).length;
+        let html = '<table class="groups-table"><thead><tr><th>Group</th><th>Members</th><th>Admin?</th><th>Moderation</th><th>Lock</th></tr></thead><tbody>';
         for (const g of groups) {
-          const moderationOn = currentGroupSettings[g.jid]?.moderation !== false;
-          const rowClass = g.isAdmin && !moderationOn ? 'group-row off' : 'group-row';
-          html += '<tr class="' + rowClass + '"><td>' + escapeHtml(g.name) + '</td><td>' + g.participants + '</td><td>';
-          html += g.isAdmin
-            ? '<span class="badge badge-yes">✓ Admin</span>'
-            : '<span class="badge badge-no">Member</span>';
+          const mod = currentGroupSettings[g.jid]?.moderation !== false;
+          html += '<tr class="group-row' + (g.isAdmin && !mod ? ' off' : '') + '">';
+          html += '<td>' + escapeHtml(g.name) + '</td><td>' + g.participants + '</td><td>';
+          html += g.isAdmin ? '<span class="badge badge-yes">✓ Admin</span>' : '<span class="badge badge-no">Member</span>';
           html += '</td><td>';
-          if (g.isAdmin) {
-            html += '<input type="checkbox" class="group-toggle" data-jid="' + g.jid + '"' + (moderationOn ? ' checked' : '') + '>';
-          } else {
-            html += '<span class="muted">—</span>';
-          }
+          html += g.isAdmin ? '<input type="checkbox" class="group-toggle" data-jid="' + g.jid + '"' + (mod ? ' checked' : '') + '>' : '<span class="muted">—</span>';
+          html += '</td><td>';
+          if (g.isAdmin) html += '<button class="lock-btn" data-jid="' + g.jid + '" data-action="lock">🔒 Lock</button> <button class="lock-btn" data-jid="' + g.jid + '" data-action="unlock">🔓 Unlock</button>';
+          else html += '<span class="muted">—</span>';
           html += '</td></tr>';
         }
         html += '</tbody></table>';
-        container.innerHTML = html;
+        c.innerHTML = html;
 
-        // Wire up group toggle switches
-        container.querySelectorAll('.group-toggle').forEach((toggle) => {
-          toggle.addEventListener('change', async (e) => {
+        // Wire toggles
+        c.querySelectorAll('.group-toggle').forEach(t => {
+          t.addEventListener('change', async (e) => {
             const jid = e.target.dataset.jid;
             const moderation = e.target.checked;
             e.target.disabled = true;
             try {
-              const res = await fetch('/api/group-settings', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+              const res = await api('/group-settings', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ jid, moderation }),
               });
               if (res.ok) {
@@ -467,53 +496,46 @@
                 const row = e.target.closest('.group-row');
                 if (row) row.classList.toggle('off', !moderation);
                 showToast(moderation ? 'Moderation ON' : 'Moderation OFF');
-              } else {
-                e.target.checked = !moderation;
-                showToast('Failed to toggle', 'error');
-              }
-            } catch {
-              e.target.checked = !moderation;
-              showToast('Network error', 'error');
-            }
+              } else { e.target.checked = !moderation; showToast('Failed', 'error'); }
+            } catch { e.target.checked = !moderation; showToast('Network error', 'error'); }
             e.target.disabled = false;
           });
         });
 
-        // Populate instruction group dropdown
-        const select = document.getElementById('instruction-group');
-        const currentValue = select.value;
-        select.innerHTML = '<option value="all">All groups where bot is admin</option>';
-        for (const g of groups) {
-          if (g.isAdmin) {
-            select.innerHTML += '<option value="' + g.jid + '">' + escapeHtml(g.name) + '</option>';
-          }
-        }
-        select.value = currentValue;
+        // Wire lock/unlock
+        c.querySelectorAll('.lock-btn').forEach(b => {
+          b.addEventListener('click', async (e) => {
+            const jid = e.target.dataset.jid;
+            const action = e.target.dataset.action;
+            try {
+              const res = await api('/' + action, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ groupJid: jid }),
+              });
+              showToast(res.ok ? (action === 'lock' ? 'Group locked' : 'Group unlocked') : 'Failed', res.ok ? 'success' : 'error');
+            } catch { showToast('Network error', 'error'); }
+          });
+        });
+
+        // Populate dropdowns
+        const populateSelect = (selId, currentValue) => {
+          const sel = document.getElementById(selId);
+          sel.innerHTML = '<option value="all">All admin groups</option>';
+          for (const g of groups) if (g.isAdmin) sel.innerHTML += '<option value="' + g.jid + '">' + escapeHtml(g.name) + '</option>';
+          sel.value = currentValue;
+        };
+        populateSelect('instruction-group', document.getElementById('instruction-group').value);
+        populateSelect('rules-group', document.getElementById('rules-group').value);
       }
 
       function renderLogs(logs) {
-        const container = document.getElementById('activity-container');
+        const c = document.getElementById('activity-container');
         document.getElementById('stat-actions').textContent = logs.length;
-        if (!logs.length) {
-          container.innerHTML = '<p class="empty">No activity yet.</p>';
-          return;
-        }
-        const actionLabels = {
-          link_deleted: '🗑️ Link deleted',
-          abuse_deleted: '🗑️ Abuse deleted',
-          instruction_sent: '📤 Instruction sent',
-          instruction_broadcast: '📢 Broadcast sent',
-          instruction_error: '❌ Instruction failed',
-          settings_update: '⚙️ Settings updated',
-          bot_connected: '✅ Bot connected',
-          groups_refreshed: '🔄 Groups refreshed',
-          group_toggled: '🔀 Group moderation toggled',
-        };
-        let html = '';
-        for (const log of logs.slice(0, 50)) {
+        if (!logs.length) { c.innerHTML = '<p class="empty">No activity yet.</p>'; return; }
+        c.innerHTML = logs.slice(0, 50).map(log => {
           const time = new Date(log.timestamp).toLocaleTimeString();
           const label = actionLabels[log.action] || log.action;
-          html += '<div class="log-entry"><span class="log-action">' + label + '</span>';
+          let html = '<div class="log-entry"><span class="log-action">' + label + '</span>';
           if (log.group) html += ' · ' + escapeHtml(log.group);
           if (log.sender) html += ' · from ' + escapeHtml(log.sender.split('@')[0]);
           html += '<div class="log-meta">' + time;
@@ -521,124 +543,176 @@
           if (log.details) html += ' · ' + escapeHtml(log.details);
           if (log.error) html += ' · ' + escapeHtml(log.error);
           html += '</div></div>';
-        }
-        container.innerHTML = html;
+          return html;
+        }).join('');
       }
 
-      function renderSettings(settings) {
-        currentSettings = settings;
-        document.getElementById('anti-link').checked = settings.antiLink;
-        document.getElementById('anti-abuse').checked = settings.antiAbuse;
-        document.getElementById('abusive-words').value = settings.abusiveWords.join(', ');
+      function renderSettings(s) {
+        currentSettings = s;
+        document.getElementById('anti-link').checked = s.antiLink;
+        document.getElementById('anti-abuse').checked = s.antiAbuse;
+        document.getElementById('abusive-words').value = s.abusiveWords.join(', ');
       }
 
-      function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = String(text || '');
-        return div.innerHTML;
+      function renderSchedules(s) {
+        document.getElementById('schedule-open').value = s.openTime || '';
+        document.getElementById('schedule-close').value = s.closeTime || '';
+        document.getElementById('schedule-morning').value = s.morningTime || '';
+        document.getElementById('morning-message').value = s.morningMessage || '';
       }
 
-      async function poll() {
+      function renderRules(r) {
+        document.getElementById('rules-message').value = r.rulesMessage || '';
+      }
+
+      async function pollBot() {
         try {
-          const res = await fetch('/api/status', { cache: 'no-store' });
+          const res = await api('/status', { cache: 'no-store' });
           const status = await res.json();
-          setStatus(status.connection, status.qr, status.botNumber);
-
+          setStatus(status);
           if (status.connection === 'connected') {
-            const [groupsRes, logsRes, settingsRes, groupSettingsRes] = await Promise.all([
-              fetch('/api/groups', { cache: 'no-store' }),
-              fetch('/api/logs', { cache: 'no-store' }),
-              fetch('/api/settings', { cache: 'no-store' }),
-              fetch('/api/group-settings', { cache: 'no-store' }),
+            const [g, l, s, gs, sc, rl] = await Promise.all([
+              api('/groups', { cache: 'no-store' }),
+              api('/logs', { cache: 'no-store' }),
+              api('/settings', { cache: 'no-store' }),
+              api('/group-settings', { cache: 'no-store' }),
+              api('/schedules', { cache: 'no-store' }),
+              api('/rules', { cache: 'no-store' }),
             ]);
-            currentGroupSettings = await groupSettingsRes.json();
-            renderGroups(await groupsRes.json());
-            renderLogs(await logsRes.json());
-            if (!currentSettings) renderSettings(await settingsRes.json());
+            currentGroupSettings = await gs.json();
+            renderGroups(await g.json());
+            renderLogs(await l.json());
+            if (!currentSettings) renderSettings(await s.json());
+            renderSchedules(await sc.json());
+            renderRules(await rl.json());
           }
         } catch {
-          statusBadge.textContent = 'Connection lost…';
-          statusBadge.className = 'status-badge s-error';
+          document.getElementById('status-badge').textContent = 'Connection lost…';
+          document.getElementById('status-badge').className = 'status-badge s-error';
         }
-        setTimeout(poll, 5000);
+        pollTimer = setTimeout(pollBot, 5000);
       }
 
-      // Refresh groups button
-      document.getElementById('refresh-groups').addEventListener('click', async () => {
-        const btn = document.getElementById('refresh-groups');
-        btn.disabled = true;
-        btn.textContent = 'Loading…';
+      // --- Event handlers ---
+      document.getElementById('back-btn').addEventListener('click', () => navigate(''));
+
+      document.getElementById('save-config').addEventListener('click', async () => {
+        const role = document.getElementById('bot-role').value;
+        const displayName = document.getElementById('bot-name').value.trim() || null;
         try {
-          const res = await fetch('/api/groups/refresh', { method: 'POST' });
-          if (res.ok) {
-            const groups = await res.json();
-            renderGroups(groups);
-            showToast('Groups refreshed');
-          } else {
-            showToast('Failed to refresh', 'error');
-          }
-        } catch {
-          showToast('Network error', 'error');
-        }
-        btn.disabled = false;
-        btn.textContent = '↻ Refresh';
+          await fetch('/api/bots/' + currentBotId, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role, displayName }),
+          });
+          showToast('Configuration saved');
+        } catch { showToast('Failed', 'error'); }
       });
 
-      // Settings form
+      document.getElementById('remove-bot-btn').addEventListener('click', async () => {
+        if (!confirm('Remove this bot? Auth credentials will be kept.')) return;
+        try {
+          await fetch('/api/bots/' + currentBotId, { method: 'DELETE' });
+          showToast('Bot removed');
+          navigate('');
+        } catch { showToast('Failed', 'error'); }
+      });
+
+      document.getElementById('refresh-groups').addEventListener('click', async () => {
+        const btn = document.getElementById('refresh-groups');
+        btn.disabled = true; btn.textContent = 'Loading…';
+        try {
+          const res = await api('/groups/refresh', { method: 'POST' });
+          if (res.ok) { renderGroups(await res.json()); showToast('Groups refreshed'); }
+          else showToast('Failed', 'error');
+        } catch { showToast('Network error', 'error'); }
+        btn.disabled = false; btn.textContent = '↻ Refresh';
+      });
+
       document.getElementById('settings-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const antiLink = document.getElementById('anti-link').checked;
         const antiAbuse = document.getElementById('anti-abuse').checked;
-        const abusiveWords = document.getElementById('abusive-words').value
-          .split(',').map((w) => w.trim()).filter(Boolean);
+        const abusiveWords = document.getElementById('abusive-words').value.split(',').map(w => w.trim()).filter(Boolean);
         try {
-          const res = await fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const res = await api('/settings', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ antiLink, antiAbuse, abusiveWords }),
           });
-          if (res.ok) {
-            renderSettings(await res.json());
-            showToast('Settings saved');
-          } else {
-            showToast('Failed to save', 'error');
-          }
-        } catch {
-          showToast('Network error', 'error');
-        }
+          if (res.ok) { renderSettings(await res.json()); showToast('Settings saved'); }
+          else showToast('Failed', 'error');
+        } catch { showToast('Network error', 'error'); }
       });
 
-      // Instruction form
+      document.getElementById('schedules-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const schedules = {
+          openTime: document.getElementById('schedule-open').value,
+          closeTime: document.getElementById('schedule-close').value,
+          morningTime: document.getElementById('schedule-morning').value,
+          morningMessage: document.getElementById('morning-message').value,
+        };
+        try {
+          const res = await api('/schedules', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(schedules),
+          });
+          if (res.ok) { renderSchedules(await res.json()); showToast('Schedule saved'); }
+          else showToast('Failed', 'error');
+        } catch { showToast('Network error', 'error'); }
+      });
+
+      document.getElementById('save-rules-btn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        const rulesMessage = document.getElementById('rules-message').value;
+        try {
+          await api('/rules', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rulesMessage }),
+          });
+          showToast('Rules saved');
+        } catch { showToast('Failed', 'error'); }
+      });
+
+      document.getElementById('send-rules-btn').addEventListener('click', async () => {
+        const rulesMessage = document.getElementById('rules-message').value;
+        const groupJid = document.getElementById('rules-group').value;
+        try {
+          const res = await api('/rules', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rulesMessage, send: true, groupJid }),
+          });
+          if (res.ok) {
+            const r = await res.json();
+            showToast('Rules sent to ' + r.sent + ' group(s)');
+          } else showToast('Failed', 'error');
+        } catch { showToast('Network error', 'error'); }
+      });
+
       document.getElementById('instruction-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const groupJid = document.getElementById('instruction-group').value;
         const message = document.getElementById('instruction-message').value.trim();
         if (!message) return;
         const btn = document.getElementById('send-instruction');
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
+        btn.disabled = true; btn.textContent = 'Sending…';
         try {
-          const res = await fetch('/api/instruction', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const res = await api('/instruction', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ groupJid, message }),
           });
           if (res.ok) {
-            const result = await res.json();
-            showToast('Sent to ' + result.sent + ' group' + (result.sent !== 1 ? 's' : ''));
+            const r = await res.json();
+            showToast('Sent to ' + r.sent + ' group(s)');
             document.getElementById('instruction-message').value = '';
-          } else {
-            const err = await res.json();
-            showToast(err.error || 'Failed to send', 'error');
-          }
-        } catch {
-          showToast('Network error', 'error');
-        }
-        btn.disabled = false;
-        btn.textContent = 'Send';
+          } else { const e2 = await res.json(); showToast(e2.error || 'Failed', 'error'); }
+        } catch { showToast('Network error', 'error'); }
+        btn.disabled = false; btn.textContent = 'Send';
       });
 
-      poll();
+      // --- Init ---
+      const initialId = getBotIdFromHash();
+      if (initialId) showBotView(initialId);
+      else showHome();
     </script>
   </body>
 </html>
