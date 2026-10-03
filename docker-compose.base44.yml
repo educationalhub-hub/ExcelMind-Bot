@@ -1,0 +1,21 @@
+services:
+  bot:
+    image: node:22
+    working_dir: /app
+    volumes:
+      - .:/app
+      - bot_auth:/app/auth_info
+    env_file:
+      - ./.env.base44-defaults
+      - /run/base44/app.env
+    command: ["sh", "-ec", "npm ci && exec node --watch src/index.js"]
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'node.*index.js' >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+
+volumes:
+  bot_auth:

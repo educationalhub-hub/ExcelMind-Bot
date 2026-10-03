@@ -6,7 +6,6 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import P from 'pino';
 import qrcode from 'qrcode-terminal';
-import qrcode from 'qrcode-terminal';
 import {
   containsLink,
   resetLinkRegex,
