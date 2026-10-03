@@ -1,0 +1,19 @@
+services:
+  bot:
+    image: node:22-slim
+    working_dir: /app
+    restart: on-failure
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - /run/base44/app.env
+    command: ["sh", "-ec", "npm ci && exec npm run dev"]
+    healthcheck:
+      test: ["CMD", "sh", "-c", "grep -qs 'index.js' /proc/[0-9]*/cmdline 2>/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
