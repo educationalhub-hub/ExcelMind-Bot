@@ -5,6 +5,8 @@ const SUPPRESS_PATTERNS = [
   'Bad MAC',
   'Failed to decrypt message with any known session',
   'Closing session: SessionEntry',
+  'MessageCounterError',
+  'Key used already or never filled',
 ];
 const _origError = console.error;
 console.error = (...args) => {

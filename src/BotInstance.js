@@ -52,6 +52,7 @@ export class BotInstance {
     this.sock = null;
     this.qrRevision = 0;
     this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
     this.muteTimers = new Map();
     this.scheduleTimer = null;
     this.lastScheduleRun = {};
@@ -230,6 +231,7 @@ export class BotInstance {
     }
 
     if (connection === 'open') {
+      this.reconnectAttempts = 0;
       this.setBotNumber(this.sock.user?.id);
       this.updateConnection('connected');
       console.log(`✅ ${this.id} (${this.number}) connected to WhatsApp!`);
@@ -265,14 +267,29 @@ export class BotInstance {
       console.log(`❌ ${this.id} connection closed (code: ${statusCode})`);
 
       if (shouldReconnect) {
-        console.log(`🔄 ${this.id} reconnecting...`);
+        this.reconnectAttempts++;
+        // After 5 consecutive failures, wipe stale auth and start fresh
+        if (this.reconnectAttempts >= 5) {
+          console.log(`🧹 ${this.id}: ${this.reconnectAttempts} failed attempts — wiping auth for fresh QR`);
+          this.reconnectAttempts = 0;
+          this.qrRevision = 0;
+          try {
+            await rm(this.authDir, { recursive: true, force: true });
+          } catch (e) {
+            console.error(`❌ ${this.id} auth cleanup error:`, e.message);
+          }
+        }
+        // Exponential backoff: 5s, 10s, 20s, 40s, 80s (capped at 80s)
+        const delay = Math.min(5000 * 2 ** (this.reconnectAttempts - 1), 80000);
+        console.log(`🔄 ${this.id} reconnecting in ${delay / 1000}s (attempt #${this.reconnectAttempts})...`);
         this.reconnectTimer = setTimeout(
           () => this.start().catch((e) => console.error(`❌ ${this.id} restart error:`, e)),
-          10000,
+          delay,
         );
       } else {
         // Session was logged out on WhatsApp's side — wipe stale auth files
         // so the next activate() generates a fresh QR instead of retrying dead creds
+        this.reconnectAttempts = 0;
         this.qrRevision = 0;
         try {
           await rm(this.authDir, { recursive: true, force: true });
