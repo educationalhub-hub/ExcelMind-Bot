@@ -48,6 +48,19 @@ export async function migrate() {
       );
 
       CREATE INDEX IF NOT EXISTS idx_bots_user_id ON bots(user_id);
+
+      CREATE TABLE IF NOT EXISTS payment_verifications (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        plan            TEXT NOT NULL,
+        sender_name     TEXT NOT NULL,
+        bank_name       TEXT NOT NULL,
+        transaction_id  TEXT NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'pending',
+        reviewed_by     INTEGER REFERENCES users(id),
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        reviewed_at     TIMESTAMPTZ
+      );
     `);
 
     // Add columns to existing tables if they don't exist (safe for already-created tables)

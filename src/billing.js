@@ -79,6 +79,40 @@ export function billingRouter() {
     }
   });
 
+  // Submit manual payment verification
+  router.post('/verify', requireAuth, async (req, res) => {
+    const { plan, senderName, bankName, transactionId } = req.body || {};
+    if (!plan || !['pro', 'business'].includes(plan)) {
+      return res.status(400).json({ error: 'Select a valid plan (Pro or Business)' });
+    }
+    if (!senderName || !bankName || !transactionId) {
+      return res.status(400).json({ error: 'Sender name, bank, and transaction ID are required' });
+    }
+    try {
+      const result = await pool.query(
+        `INSERT INTO payment_verifications (user_id, plan, sender_name, bank_name, transaction_id)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id, status, created_at`,
+        [req.user.id, plan, senderName, bankName, transactionId]
+      );
+      res.json({ success: true, verification: result.rows[0] });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to submit payment verification' });
+    }
+  });
+
+  // List user's own verifications
+  router.get('/verifications', requireAuth, async (req, res) => {
+    try {
+      const result = await pool.query(
+        'SELECT id, plan, sender_name, bank_name, transaction_id, status, created_at FROM payment_verifications WHERE user_id = $1 ORDER BY created_at DESC',
+        [req.user.id]
+      );
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch verifications' });
+    }
+  });
+
   // Stripe webhook (raw body needed — mounted separately in index.js)
   return router;
 }

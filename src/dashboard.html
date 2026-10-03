@@ -288,13 +288,24 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
     </div>
     <div class="card">
       <h2>💳 Manual Payment (Bank Transfer)</h2>
-      <p style="color:var(--muted);margin-bottom:12px">Prefer to pay directly? Transfer to the account below, then send proof of payment on WhatsApp to activate your plan.</p>
-      <div style="background:#f8fafc;border:1px dashed var(--primary);border-radius:12px;padding:16px">
+      <p style="color:var(--muted);margin-bottom:12px">Transfer to the account below, then submit your payment details for verification. Your plan is activated once the admin confirms your payment.</p>
+      <div style="background:#f8fafc;border:1px dashed var(--primary);border-radius:12px;padding:16px;margin-bottom:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Account Name:</strong> <span>Daniel Oluwatimileyin Awolola</span></div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Account Number:</strong> <span>9114112326 <button class="btn btn-outline btn-sm" style="padding:2px 10px;font-size:11px" onclick="navigator.clipboard.writeText('9114112326').then(()=>alert('Copied!'))">Copy</button></span></div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Bank:</strong> <span>Opay</span></div>
       </div>
-      <a href="https://wa.me/2349114112326?text=Hello%20Daniel%2C%20I%20just%20made%20a%20payment%20for%20OmniMod.%20Here%20is%20my%20proof%20of%20payment%3A" target="_blank" class="btn btn-primary" style="margin-top:14px;display:inline-block">💬 Send Proof on WhatsApp</a>
+      <div id="verify-error" class="error" hidden></div>
+      <div class="form-group"><label>Plan</label><select id="verify-plan"><option value="pro">Pro — ₦1,500/month</option><option value="business">Business — ₦2,500/month</option></select></div>
+      <div class="form-group"><label>Sender's Name</label><input type="text" id="verify-sender" placeholder="Name on the sending account"></div>
+      <div class="form-group"><label>Bank (sender's bank)</label><input type="text" id="verify-bank" placeholder="e.g. GTBank, Access Bank, Opay..."></div>
+      <div class="form-group"><label>Transaction ID / Reference</label><input type="text" id="verify-txn" placeholder="Transaction ID or reference number"></div>
+      <button class="btn btn-primary btn-sm" onclick="submitVerification()" id="verify-btn">Submit Payment Details</button>
+      <div id="verify-status" style="margin-top:12px"></div>
+      <a href="https://wa.me/2349114112326?text=Hello%2C%20I%20need%20help%20with%20my%20OmniMod%20payment%20or%20subscription" target="_blank" class="btn btn-outline btn-sm" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px">💬 Message Admin on WhatsApp</a>
+    </div>
+    <div class="card" id="verify-history-card" hidden>
+      <h2>Your Payment Submissions</h2>
+      <div id="verify-history"></div>
     </div>
   </div>
 
@@ -369,6 +380,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <button class="active" onclick="showAdminView('stats',this)">📊 Overview</button>
       <button onclick="showAdminView('users',this)">👥 Users</button>
       <button onclick="showAdminView('announcements',this)">📢 Announcements</button>
+      <button onclick="showAdminView('verifications',this)">💳 Verifications</button>
     </div>
 
     <div id="admin-stats">
@@ -397,6 +409,16 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <div class="card">
         <h2>Existing Announcements</h2>
         <div id="ann-list"><div style="color:var(--muted)">Loading...</div></div>
+      </div>
+    </div>
+    <div id="admin-verifications" hidden>
+      <div class="card">
+        <h2>Payment Verifications</h2>
+        <p style="color:var(--muted);margin-bottom:16px">Review manual payment submissions. Approving upgrades the user's plan automatically.</p>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>User</th><th>Plan</th><th>Sender</th><th>Bank</th><th>Trans. ID</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
+          <tbody id="verify-tbody"></tbody>
+        </table></div>
       </div>
     </div>
   </div>
@@ -478,7 +500,7 @@ function showView(view,el){
   if(el) el.classList.add('active');
   if(view==='bots'){document.getElementById('bot-detail-view').hidden=true;document.getElementById('bot-list-view').hidden=false;loadBots();}
   if(view==='profile') loadProfile();
-  if(view==='premium') loadPlans();
+  if(view==='premium'){loadPlans();loadUserVerifications();}
   if(view==='admin') loadAdminView();
 }
 
@@ -488,11 +510,13 @@ function showAdminView(view,el){
   document.getElementById('admin-stats').hidden=view!=='stats';
   document.getElementById('admin-users').hidden=view!=='users';
   document.getElementById('admin-announcements').hidden=view!=='announcements';
+  document.getElementById('admin-verifications').hidden=view!=='verifications';
   document.querySelectorAll('.admin-subnav button').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
   if(view==='stats') loadAdminStats();
   if(view==='users') loadAdminUsers();
   if(view==='announcements') loadAdminAnnouncements();
+  if(view==='verifications') loadAdminVerifications();
 }
 async function loadAdminStats(){
   try{
@@ -844,6 +868,56 @@ async function upgradePlan(planId){
     if(data.url)window.location.href=data.url;
   }catch{alert('Failed to start checkout. Make sure Stripe is configured.');}
 }
+
+// --- Payment Verification (user) ---
+async function submitVerification(){
+  const btn=document.getElementById('verify-btn');btn.disabled=true;btn.textContent='Submitting...';
+  const body={
+    plan:document.getElementById('verify-plan').value,
+    senderName:document.getElementById('verify-sender').value.trim(),
+    bankName:document.getElementById('verify-bank').value.trim(),
+    transactionId:document.getElementById('verify-txn').value.trim()
+  };
+  const e=document.getElementById('verify-error');
+  try{
+    const res=await fetch('/api/billing/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!res.ok){e.textContent=data.error;e.hidden=false;return;}
+    e.hidden=true;
+    document.getElementById('verify-status').innerHTML='<div class="badge s-waiting">Submitted — awaiting admin confirmation</div>';
+    document.getElementById('verify-sender').value='';document.getElementById('verify-bank').value='';document.getElementById('verify-txn').value='';
+    loadUserVerifications();
+  }catch{e.textContent='Failed to submit. Please try again.';e.hidden=false;}
+  finally{btn.disabled=false;btn.textContent='Submit Payment Details';}
+}
+async function loadUserVerifications(){
+  try{
+    const res=await fetch('/api/billing/verifications');const items=await res.json();
+    if(!items.length){document.getElementById('verify-history-card').hidden=true;return;}
+    document.getElementById('verify-history-card').hidden=false;
+    document.getElementById('verify-history').innerHTML=items.map(v=>`<div class="group-item"><div><div class="group-name">${v.plan.charAt(0).toUpperCase()+v.plan.slice(1)} — ₦${v.plan==='pro'?'1,500':'2,500'}</div><div class="group-meta">${v.sender_name} • ${v.bank_name} • Ref: ${v.transaction_id}</div><div class="log-time">${new Date(v.created_at).toLocaleString()}</div></div><span class="badge ${v.status==='approved'?'s-connected':v.status==='rejected'?'s-stopped':'s-waiting'}">${v.status}</span></div>`).join('');
+  }catch{}
+}
+
+// --- Admin: Payment Verifications ---
+async function loadAdminVerifications(){
+  try{
+    const res=await fetch('/api/admin/verifications');const items=await res.json();
+    if(!items.length){document.getElementById('verify-tbody').innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">No payment submissions yet.</td></tr>';return;}
+    document.getElementById('verify-tbody').innerHTML=items.map(v=>`<tr>
+      <td>${v.email}<br><span style="font-size:12px;color:var(--muted)">${v.user_name||''}</span></td>
+      <td><span class="badge badge-${v.plan}">${v.plan}</span></td>
+      <td>${v.sender_name}</td>
+      <td>${v.bank_name}</td>
+      <td style="font-size:12px">${v.transaction_id}</td>
+      <td><span class="badge ${v.status==='approved'?'badge-active':v.status==='rejected'?'badge-inactive':'s-waiting'}">${v.status}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${new Date(v.created_at).toLocaleString()}</td>
+      <td class="user-actions">${v.status==='pending'?`<button class="btn btn-success btn-sm" onclick="approveVerification(${v.id})">Approve</button><button class="btn btn-danger btn-sm" onclick="rejectVerification(${v.id})">Reject</button>`:'—'}</td>
+    </tr>`).join('');
+  }catch{}
+}
+async function approveVerification(id){const res=await fetch(`/api/admin/verifications/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'approved'})});const d=await res.json();if(d.error)alert(d.error);else{alert(`Approved! User upgraded to ${d.plan}.`);loadAdminVerifications();}}
+async function rejectVerification(id){if(!confirm('Reject this payment?'))return;const res=await fetch(`/api/admin/verifications/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'rejected'})});const d=await res.json();if(d.error)alert(d.error);else loadAdminVerifications();}
 
 // --- Share (About tab) ---
 async function shareApp(platform){

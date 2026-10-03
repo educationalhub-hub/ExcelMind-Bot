@@ -263,6 +263,52 @@ export function createApp(botManager) {
     }
   });
 
+  // List all payment verifications (admin only)
+  adminApi.get('/verifications', async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT v.id, v.plan, v.sender_name, v.bank_name, v.transaction_id, v.status, v.created_at,
+                u.email, u.name as user_name
+         FROM payment_verifications v
+         JOIN users u ON v.user_id = u.id
+         ORDER BY v.created_at DESC`
+      );
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch verifications' });
+    }
+  });
+
+  // Approve or reject a payment verification (admin only)
+  adminApi.put('/verifications/:id', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body || {};
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be approved or rejected' });
+    }
+    try {
+      const result = await pool.query(
+        'SELECT user_id, plan, status FROM payment_verifications WHERE id = $1', [id]
+      );
+      if (!result.rows.length) return res.status(404).json({ error: 'Verification not found' });
+      const v = result.rows[0];
+      if (v.status !== 'pending') return res.status(400).json({ error: 'Already reviewed' });
+
+      await pool.query(
+        'UPDATE payment_verifications SET status = $1, reviewed_by = $2, reviewed_at = now() WHERE id = $3',
+        [status, req.user.id, id]
+      );
+
+      if (status === 'approved') {
+        await pool.query('UPDATE users SET plan = $1 WHERE id = $2', [v.plan, v.user_id]);
+      }
+
+      res.json({ success: true, status, plan: v.plan });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update verification' });
+    }
+  });
+
   app.use('/api/admin', adminApi);
 
   // --- API: Bot management (all behind auth) ---
