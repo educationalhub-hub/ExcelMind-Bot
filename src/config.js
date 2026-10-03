@@ -1,6 +1,7 @@
 export const config = {
   botName: 'ExcelMind-Bot',
   botDisplayName: 'Bot',
+  muteDurationMs: 12 * 60 * 60 * 1000, // 12 hours
 
   antiLink: {
     enabled: true,

@@ -25,7 +25,12 @@ import {
   isAdmin,
   containsAbuse,
 } from './antiLink.js';
-import { getGroupSetting } from './botState.js';
+import {
+  getGroupSetting,
+  addMutedUser,
+  isUserMuted,
+  removeMutedUser,
+} from './botState.js';
 import { config } from './config.js';
 
 const dashboard = createDashboardServer();
@@ -141,12 +146,30 @@ async function startBot() {
       // Only moderate WhatsApp groups.
       if (!remoteJid?.endsWith('@g.us')) return;
 
+      const msg = message.message;
+      const contextInfo =
+        msg.extendedTextMessage?.contextInfo ||
+        msg.imageMessage?.contextInfo ||
+        msg.videoMessage?.contextInfo ||
+        {};
+
+      // Broaden text extraction: covers regular text, link previews (canonicalUrl),
+      // status shares, documents, live locations, and interactive messages.
       const messageText =
-        message.message.conversation ||
-        message.message.extendedTextMessage?.text ||
-        message.message.imageMessage?.caption ||
-        message.message.videoMessage?.caption ||
-        '';
+        [
+          msg.conversation,
+          msg.extendedTextMessage?.text,
+          msg.extendedTextMessage?.canonicalUrl,
+          msg.imageMessage?.caption,
+          msg.videoMessage?.caption,
+          msg.documentMessage?.caption,
+          msg.liveLocationMessage?.caption,
+          msg.buttonsMessage?.contentText,
+          msg.listMessage?.description,
+          contextInfo?.externalAdReply?.body,
+        ]
+          .filter(Boolean)
+          .join(' ') || '';
 
       if (!messageText) return;
 
@@ -203,6 +226,39 @@ async function startBot() {
       console.log(
         `🗑️ Deleted ${reason} message from ${senderJid || 'unknown user'} in ${groupName}`
       );
+
+      // Mute (kick + auto re-add after 12h) anyone who sends a link.
+      if (hasLink && senderJid && !isUserMuted(remoteJid, senderJid)) {
+        try {
+          await sock.groupParticipantsUpdate(remoteJid, [senderJid], 'remove');
+          addMutedUser(remoteJid, senderJid, config.muteDurationMs);
+          addLog('user_muted', {
+            group: groupName,
+            groupJid: remoteJid,
+            sender: senderJid,
+            details: 'Muted for 12 hours (link violation)',
+          });
+          console.log(`🔇 Muted ${senderJid} in ${groupName} for 12 hours`);
+
+          setTimeout(async () => {
+            try {
+              await sock.groupParticipantsUpdate(remoteJid, [senderJid], 'add');
+              removeMutedUser(remoteJid, senderJid);
+              addLog('user_unmuted', {
+                group: groupName,
+                groupJid: remoteJid,
+                sender: senderJid,
+                details: 'Auto-unmuted after 12 hours',
+              });
+              console.log(`🔊 Unmuted ${senderJid} in ${groupName}`);
+            } catch (error) {
+              console.error('❌ Failed to unmute:', error.message);
+            }
+          }, config.muteDurationMs);
+        } catch (error) {
+          console.error('❌ Failed to mute user:', error.message);
+        }
+      }
 
     } catch (error) {
       console.error('❌ Moderation error:', error);

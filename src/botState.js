@@ -18,6 +18,8 @@ export const botState = {
   // Per-group moderation toggles: { [jid]: { moderation: true } }
   // Defaults to enabled for all admin groups.
   groupSettings: {},
+  // Muted users: { [`${groupJid}:${senderJid}`]: { muteUntil: ISOString } }
+  mutedUsers: {},
 };
 
 const MAX_LOGS = 100;
@@ -72,4 +74,26 @@ export function getGroupSetting(jid) {
     return { moderation: true };
   }
   return botState.groupSettings[jid];
+}
+
+export function addMutedUser(groupJid, senderJid, durationMs) {
+  const key = `${groupJid}:${senderJid}`;
+  botState.mutedUsers[key] = {
+    muteUntil: new Date(Date.now() + durationMs).toISOString(),
+  };
+}
+
+export function isUserMuted(groupJid, senderJid) {
+  const key = `${groupJid}:${senderJid}`;
+  const entry = botState.mutedUsers[key];
+  if (!entry) return false;
+  if (new Date(entry.muteUntil) <= new Date()) {
+    delete botState.mutedUsers[key];
+    return false;
+  }
+  return true;
+}
+
+export function removeMutedUser(groupJid, senderJid) {
+  delete botState.mutedUsers[`${groupJid}:${senderJid}`];
 }
