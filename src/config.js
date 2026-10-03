@@ -4,9 +4,9 @@ export const config = {
   configsPath: './auth_info/bot-configs.json',
 
   defaultBots: [
-    { id: 'bot1', number: '2349164237873', displayName: 'Bot', role: 'Moderator', authDir: './auth_info' },
-    { id: 'bot2', number: '2347018544908', displayName: null, role: 'Guard', authDir: './auth_info/bot2' },
-    { id: 'bot3', number: '2349114112326', displayName: null, role: 'Announcer', authDir: './auth_info/bot3' },
+    { id: 'bot1', number: '2349164237873', displayName: 'Bot', role: 'Moderator', authDir: './auth_info', active: true, capabilities: { moderation: true, antiLink: true, announcements: false } },
+    { id: 'bot2', number: '2347018544908', displayName: null, role: 'Guard', authDir: './auth_info/bot2', active: true, capabilities: { moderation: false, antiLink: true, announcements: false } },
+    { id: 'bot3', number: '2349114112326', displayName: null, role: 'Moderator', authDir: './auth_info/bot3', active: true, capabilities: { moderation: true, antiLink: true, announcements: true } },
   ],
 
   defaultRules: `📋 *GROUP RULES & REGULATIONS*

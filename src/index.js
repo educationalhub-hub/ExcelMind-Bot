@@ -18,6 +18,13 @@ process.stderr.write = (chunk, ...rest) => {
   return _origStderr(chunk, ...rest);
 };
 
+// Prevent Baileys "Connection Closed" rejections from crashing the process.
+process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || String(reason);
+  if (msg === 'Connection Closed' || reason?.output?.statusCode === 428) return;
+  console.error('Unhandled rejection:', msg);
+});
+
 import { BotManager } from './botManager.js';
 import { createDashboardServer } from './dashboardServer.js';
 

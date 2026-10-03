@@ -21,12 +21,14 @@ const DEFAULT_ABUSIVE_WORDS = [
 const MAX_LOGS = 100;
 
 export class BotInstance {
-  constructor({ id, number, displayName, role, authDir }) {
+  constructor({ id, number, displayName, role, authDir, capabilities, active }) {
     this.id = id;
     this.number = number;
     this.displayName = displayName;
     this.role = role || 'Moderator';
     this.authDir = authDir;
+    this.active = active !== false;
+    this.capabilities = capabilities || this.getDefaultCapabilities();
     this.sock = null;
     this.qrRevision = 0;
     this.reconnectTimer = null;
@@ -50,6 +52,47 @@ export class BotInstance {
       schedules: { ...config.defaultSchedules },
       rulesMessage: config.defaultRules,
     };
+  }
+
+  getDefaultCapabilities() {
+    // Main account (bot3) performs all functions
+    if (this.number === '2349114112326') {
+      return { moderation: true, antiLink: true, announcements: true };
+    }
+    switch (this.role) {
+      case 'Guard': return { moderation: false, antiLink: true, announcements: false };
+      case 'Announcer': return { moderation: false, antiLink: false, announcements: true };
+      default: return { moderation: true, antiLink: true, announcements: false };
+    }
+  }
+
+  updateCapabilities(newCapabilities) {
+    this.capabilities = { ...this.capabilities, ...newCapabilities };
+  }
+
+  // --- Start / Stop ---
+  async activate() {
+    if (this.active) return;
+    this.active = true;
+    this.updateConnection('connecting');
+    this.addLog('bot_started', { details: 'Bot activated by user' });
+    console.log(`▶️ ${this.id}: activated by user`);
+    await this.start();
+  }
+
+  async deactivate() {
+    this.active = false;
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
+    for (const timer of this.muteTimers.values()) clearTimeout(timer);
+    this.muteTimers.clear();
+    if (this.sock) {
+      try { this.sock.end(); } catch { /* ignore */ }
+      this.sock = null;
+    }
+    this.updateConnection('stopped');
+    this.addLog('bot_stopped', { details: 'Bot deactivated by user' });
+    console.log(`⏸️ ${this.id}: deactivated by user`);
   }
 
   // --- State helpers ---
@@ -170,6 +213,10 @@ export class BotInstance {
     }
 
     if (connection === 'close') {
+      if (!this.active) {
+        this.updateConnection('stopped');
+        return;
+      }
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       this.updateConnection(shouldReconnect ? 'reconnecting' : 'logged_out');
@@ -248,8 +295,9 @@ export class BotInstance {
       if (isAdmin(senderJid, groupMetadata)) return;
 
       resetLinkRegex();
-      const hasLink = this.state.settings.antiLink && containsLink(messageText);
+      const hasLink = this.capabilities.antiLink && this.state.settings.antiLink && containsLink(messageText);
       const hasAbuse =
+        this.capabilities.moderation &&
         this.state.settings.antiAbuse &&
         containsAbuse(messageText, this.state.settings.abusiveWords);
       if (!hasLink && !hasAbuse) return;
@@ -346,6 +394,7 @@ export class BotInstance {
 
   async checkSchedules() {
     if (this.state.connection !== 'connected' || !this.sock) return;
+    if (!this.capabilities.announcements) return;
     const now = new Date();
     const hh = now.getHours().toString().padStart(2, '0');
     const mm = now.getMinutes().toString().padStart(2, '0');
@@ -403,6 +452,8 @@ export class BotInstance {
       role: this.role,
       connection: this.state.connection,
       botNumber: this.state.botNumber,
+      active: this.active,
+      capabilities: this.capabilities,
     };
   }
 

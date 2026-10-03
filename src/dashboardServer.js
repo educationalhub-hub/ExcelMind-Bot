@@ -123,7 +123,29 @@ export function createDashboardServer(botManager) {
         displayName: bot.displayName,
         role: bot.role,
         number: bot.number,
+        active: bot.active,
+        capabilities: bot.capabilities,
       });
+      return;
+    }
+
+    if (method === 'POST' && subPath === '/activate') {
+      try {
+        await botManager.activateBot(botId);
+        sendJson(response, 200, bot.getStatusSummary());
+      } catch (error) {
+        sendJson(response, 500, { error: error.message });
+      }
+      return;
+    }
+
+    if (method === 'POST' && subPath === '/deactivate') {
+      try {
+        await botManager.deactivateBot(botId);
+        sendJson(response, 200, bot.getStatusSummary());
+      } catch (error) {
+        sendJson(response, 500, { error: error.message });
+      }
       return;
     }
 

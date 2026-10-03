@@ -23,7 +23,7 @@
       .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; white-space: nowrap; }
       .s-connected { background: #d1fae5; color: #065f46; }
       .s-connecting, .s-scan, .s-reconnecting { background: #fef3c7; color: #92400e; }
-      .s-error, .s-logged_out { background: #fee2e2; color: #991b1b; }
+      .s-error, .s-logged_out, .s-stopped { background: #fee2e2; color: #991b1b; }
       .s-waiting { background: #e5e7eb; color: #374151; }
 
       .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
@@ -180,8 +180,24 @@
               <input type="text" id="bot-name" placeholder="e.g., Bot">
             </div>
           </div>
-          <button id="save-config">Save Configuration</button>
-          <button class="danger" id="remove-bot-btn" style="margin-left:8px;">Remove Bot</button>
+          <label style="display:block;margin-bottom:6px;font-weight:600;font-size:14px;">Functions (what this bot is allowed to do)</label>
+          <div class="toggle-row">
+            <input type="checkbox" class="toggle" id="cap-moderation">
+            <label for="cap-moderation">🛡 Moderation — delete abusive words from non-admins</label>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" class="toggle" id="cap-antiLink">
+            <label for="cap-antiLink">🔗 Link Deletion — delete links from non-admins</label>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" class="toggle" id="cap-announcements">
+            <label for="cap-announcements">📢 Announcements — schedules, morning messages, broadcasts, group lock/unlock</label>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+            <button id="save-config">Save Configuration</button>
+            <button class="secondary" id="start-stop-btn">⏸ Stop Bot</button>
+            <button class="danger" id="remove-bot-btn">Remove Bot</button>
+          </div>
         </div>
 
         <!-- QR Pairing -->
@@ -315,13 +331,14 @@
       const statusLabels = {
         waiting: 'Waiting…', connecting: 'Connecting…', scan: 'Ready to scan',
         connected: '● Connected', reconnecting: 'Reconnecting…',
-        logged_out: 'Logged out', error: 'Error',
+        logged_out: 'Logged out', error: 'Error', stopped: '⏸ Stopped',
       };
       const qrMessages = {
         waiting: 'Waiting for a fresh QR code…', connecting: 'Connecting to WhatsApp…',
         scan: 'Ready to scan · QR refreshes automatically', connected: '✓ WhatsApp connected',
         reconnecting: 'Reconnecting… a fresh QR will appear shortly.',
-        logged_out: 'Logged out. Restart the bot to link again.', error: 'Unable to generate a QR code.',
+        logged_out: 'Logged out. Activate the bot to link again.', error: 'Unable to generate a QR code.',
+        stopped: 'Bot is stopped. Press Start to activate.',
       };
       const actionLabels = {
         link_deleted: '🗑️ Link deleted', abuse_deleted: '🗑️ Abuse deleted',
@@ -374,13 +391,17 @@
       function renderBotCards(bots) {
         const c = document.getElementById('bot-cards');
         if (!bots.length) { c.innerHTML = '<p class="empty">No bots yet. Add one below.</p>'; return; }
+        const capLabels = { moderation: '🛡 Anti-Abuse', antiLink: '🔗 Link Delete', announcements: '📢 Announce' };
         c.innerHTML = bots.map(b => {
           const cls = 's-' + b.connection;
           const label = statusLabels[b.connection] || b.connection;
           let html = '<div class="bot-card" data-id="' + b.id + '">';
           html += '<div class="bot-card-header"><span class="bot-number">+' + b.number + '</span>';
           html += '<span class="status-badge ' + cls + '">' + label + '</span></div>';
-          html += '<div class="bot-card-role">' + escapeHtml(b.role) + '</div>';
+          if (b.active === false) html += '<div class="bot-card-role" style="background:#fee2e2;color:#991b1b;">⏸ Stopped</div>';
+          else html += '<div class="bot-card-role">' + escapeHtml(b.role) + '</div>';
+          const caps = Object.entries(b.capabilities || {}).filter(([,v]) => v).map(([k]) => capLabels[k] || k);
+          if (caps.length) html += '<div class="muted">' + caps.join(' · ') + '</div>';
           if (b.displayName) html += '<div class="muted">Display: ' + escapeHtml(b.displayName) + '</div>';
           if (b.botNumber) html += '<div class="muted">Connected: ' + escapeHtml(b.botNumber.split('@')[0]) + '</div>';
           html += '</div>';
@@ -425,12 +446,15 @@
         pollBot();
       }
 
+      let currentActive = true;
       function setStatus(status) {
         const badge = document.getElementById('status-badge');
         badge.textContent = statusLabels[status.connection] || status.connection;
         badge.className = 'status-badge s-' + status.connection;
         const connected = status.connection === 'connected';
-        document.getElementById('qr-section').hidden = connected;
+        const stopped = status.connection === 'stopped' || status.active === false;
+        currentActive = status.active !== false;
+        document.getElementById('qr-section').hidden = connected || stopped;
         document.getElementById('dashboard').hidden = !connected;
 
         const info = document.getElementById('bot-info');
@@ -443,8 +467,31 @@
         // Set config form values
         document.getElementById('bot-role').value = status.role || 'Moderator';
         document.getElementById('bot-name').value = status.displayName || '';
+        // Set capability checkboxes
+        const caps = status.capabilities || {};
+        document.getElementById('cap-moderation').checked = !!caps.moderation;
+        document.getElementById('cap-antiLink').checked = !!caps.antiLink;
+        document.getElementById('cap-announcements').checked = !!caps.announcements;
 
-        if (!connected) {
+        // Update start/stop button
+        const ssBtn = document.getElementById('start-stop-btn');
+        if (currentActive) {
+          ssBtn.textContent = '⏸ Stop Bot';
+          ssBtn.className = 'secondary';
+        } else {
+          ssBtn.textContent = '▶ Start Bot';
+          ssBtn.className = '';
+          ssBtn.style.background = 'var(--primary)';
+        }
+
+        if (stopped) {
+          document.getElementById('qr-section').hidden = true;
+          const badge = document.getElementById('status-badge');
+          badge.textContent = '⏸ Stopped';
+          badge.className = 'status-badge s-stopped';
+        }
+
+        if (!connected && !stopped) {
           const qs = document.getElementById('qr-status');
           qs.textContent = qrMessages[status.connection] || qrMessages.waiting;
           const qr = document.getElementById('qr');
@@ -599,13 +646,32 @@
       document.getElementById('save-config').addEventListener('click', async () => {
         const role = document.getElementById('bot-role').value;
         const displayName = document.getElementById('bot-name').value.trim() || null;
+        const capabilities = {
+          moderation: document.getElementById('cap-moderation').checked,
+          antiLink: document.getElementById('cap-antiLink').checked,
+          announcements: document.getElementById('cap-announcements').checked,
+        };
         try {
           await fetch('/api/bots/' + currentBotId, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ role, displayName }),
+            body: JSON.stringify({ role, displayName, capabilities }),
           });
           showToast('Configuration saved');
         } catch { showToast('Failed', 'error'); }
+      });
+
+      document.getElementById('start-stop-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('start-stop-btn');
+        btn.disabled = true;
+        try {
+          const endpoint = currentActive ? '/deactivate' : '/activate';
+          const res = await api(endpoint, { method: 'POST' });
+          if (res.ok) {
+            showToast(currentActive ? 'Bot stopped' : 'Bot started');
+            currentActive = !currentActive;
+          } else { showToast('Failed', 'error'); }
+        } catch { showToast('Network error', 'error'); }
+        btn.disabled = false;
       });
 
       document.getElementById('remove-bot-btn').addEventListener('click', async () => {
