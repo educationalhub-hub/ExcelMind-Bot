@@ -72,6 +72,7 @@ async function startBot() {
 
       if (shouldReconnect) {
         console.log('🔄 Reconnecting...');
+        pairingCodeRequested = false;
         setTimeout(() => startBot(), 10000);
       } else {
         console.log('⚠️ Logged out. Please authenticate again.');
