@@ -1,6 +1,6 @@
 # ExcelMind-Bot
 
-WhatsApp group moderation bot using Baileys (`@whiskeysockets/baileys`). The bot deletes links and abusive words sent by non-admins in groups where it is an admin. A built-in dashboard on port 3000 shows connection status, group list, activity log, moderation settings, and a message broadcast tool.
+WhatsApp group moderation bot SaaS platform. Users sign up, create WhatsApp bots via QR pairing, and configure moderation, quiz, announcements, and greeter features. Built with Express, PostgreSQL, and Baileys.
 
 ## Running in Base44
 
@@ -9,59 +9,86 @@ docker compose -f docker-compose.base44.yml up -d --build
 ```
 
 - Node 22 runtime, source bind-mounted at `/app`.
-- Dependencies installed on startup via `npm ci` (lockfile-preserving).
-- `PHONE_NUMBER` secret is no longer required for QR pairing.
-- Auth state persists in `./auth_info/` (gitignored).
+- PostgreSQL 16 (Alpine) runs as a `db` compose service with auto-generated credentials.
+- Dependencies installed on startup via `npm install` (lockfile-preserving).
+- `JWT_SECRET` is auto-generated for development; replace with a real value for production.
+- Stripe keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`) are optional — billing routes return "not configured" without them.
 - Bot runs with `node --watch src/index.js` for live reload on source changes.
+- Auth state persists per-user per-bot in `./auth_info/user_{userId}/{botId}/`.
 
-## Dashboard (port 3000)
+## Architecture
 
-The dashboard replaces the old QR-only pairing page. When the bot is not connected, it shows a QR code for linking. When connected, it shows:
+- **Landing page** (`/`) — marketing page with pricing tiers.
+- **Auth pages** (`/login`, `/signup`) — login/signup with JWT cookies.
+- **Dashboard** (`/dashboard`) — multi-tenant user dashboard behind auth.
+- **API**: Express-based REST API under `/api/`.
 
-- **Stats**: total groups, groups where bot is admin, actions logged.
-- **Groups**: list of all groups the bot is in, with admin badge and member count. Refresh button re-fetches from WhatsApp.
-- **Activity**: real-time log of deleted messages, settings changes, and broadcast/instruction messages.
-- **Settings**: toggle anti-link and anti-abuse, edit the abusive words list.
-- **Send Instruction**: send a message to a specific admin group or broadcast to all admin groups.
+### Key files
 
-API endpoints (all `no-store`):
+| File | Purpose |
+|------|---------|
+| `src/index.js` | Entry point — runs DB migrations, starts BotManager, serves Express app |
+| `src/dashboardServer.js` | Express app with all routes (auth, billing, bot management) |
+| `src/auth.js` | JWT auth middleware, signup/login/logout routes |
+| `src/billing.js` | Stripe checkout, webhook handler, plan management |
+| `src/db.js` | PostgreSQL connection pool + migrations (users, bots tables) |
+| `src/botManager.js` | Multi-tenant bot CRUD — bots stored in DB, per-user isolation |
+| `src/BotInstance.js` | WhatsApp connection, moderation, quiz, greeter, scheduling |
+| `src/antiLink.js` | Link detection, abuse detection, admin check helpers |
+| `src/quizSystem.js` | Quiz question bank and state management |
+| `src/config.js` | Plans, schedules, rules defaults; Stripe price IDs from env |
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/status` | Connection status, QR data URL, bot number |
-| GET | `/api/groups` | List of groups with admin flag |
-| POST | `/api/groups/refresh` | Re-fetch groups from WhatsApp |
-| GET | `/api/logs` | Recent activity log (max 100 entries) |
-| GET | `/api/settings` | Current moderation settings |
-| POST | `/api/settings` | Update settings (antiLink, antiAbuse, abusiveWords) |
-| POST | `/api/instruction` | Send message to a group or broadcast (body: `{ groupJid, message }`) |
+### Database schema
 
-## Moderation rules
+- `users` — id, email, password_hash, name, plan, stripe_customer_id
+- `bots` — id, user_id (FK), phone_number, display_name, role, auth_dir, active, capabilities (JSONB)
 
-The bot **only moderates groups where it is an admin**. In those groups:
+### API endpoints
 
-- Links sent by non-admins are deleted (when anti-link is enabled).
-- Abusive words sent by non-admins are deleted (when anti-abuse is enabled).
-- Admins and group owners can always send anything.
-- All deletions are logged to the activity feed.
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | `/api/auth/signup` | — | Create account |
+| POST | `/api/auth/login` | — | Log in |
+| POST | `/api/auth/logout` | — | Log out |
+| GET | `/api/auth/me` | ✅ | Current user |
+| GET | `/api/billing/plans` | — | List plans |
+| GET | `/api/billing/status` | ✅ | User's subscription |
+| POST | `/api/billing/checkout` | ✅ | Create Stripe checkout |
+| POST | `/api/billing/webhook` | — | Stripe webhook (raw body) |
+| GET | `/api/bots` | ✅ | List user's bots |
+| POST | `/api/bots` | ✅ | Create bot (plan-limited) |
+| GET/PUT/DELETE | `/api/bots/:id` | ✅ | Read/update/delete bot |
+| POST | `/api/bots/:id/activate` | ✅ | Start bot |
+| POST | `/api/bots/:id/deactivate` | ✅ | Stop bot |
+| POST | `/api/bots/:id/logout` | ✅ | Logout + clear auth for re-pair |
+| GET | `/api/bots/:id/status` | ✅ | Connection + QR |
+| GET | `/api/bots/:id/groups` | ✅ | List groups |
+| POST | `/api/bots/:id/groups/refresh` | ✅ | Re-fetch groups |
+| GET/POST | `/api/bots/:id/settings` | ✅ | Moderation settings |
+| GET/POST | `/api/bots/:id/schedules` | ✅ | Group schedules |
+| GET/POST | `/api/bots/:id/quiz` | ✅ | Quiz & greeting config |
+| POST | `/api/bots/:id/quiz/send` | ✅ | Send quiz now |
+| GET | `/api/bots/:id/logs` | ✅ | Activity log |
+| GET | `/api/status` | — | Health check (aggregate) |
 
-## Key files
+### Subscription plans
 
-- `src/index.js` — bot entry point; connects to WhatsApp, runs moderation, serves dashboard.
-- `src/dashboardServer.js` — HTTP server for the dashboard and API endpoints.
-- `src/dashboard.html` — dashboard UI (groups, activity, settings, instructions).
-- `src/botState.js` — shared in-memory state (connection, groups, logs, settings).
-- `src/antiLink.js` — link detection, abuse detection, admin check helpers.
-- `src/config.js` — default configuration constants.
+- **Free**: 1 bot, anti-link only
+- **Pro** ($9/mo): 5 bots, all features
+- **Business** ($29/mo): unlimited bots, all features
 
 ## Verifying the app started
 
-Check logs: `docker compose -f docker-compose.base44.yml logs bot`. A successful start prints "📊 ExcelMind-Bot dashboard is ready on port 3000." and then "✅ ExcelMind-Bot connected to WhatsApp!" after linking. The dashboard at `/` shows the connection status and group list.
+```sh
+docker compose -f docker-compose.base44.yml logs bot
+```
+
+Success: `✅ Database migrations complete` then `📊 ExcelMind-Bot SaaS platform is ready on port 3000.`
+
+The landing page at `/` shows marketing content; `/signup` allows creating an account; `/dashboard` shows the user's bots.
 
 ## Tests
 
 ```sh
 docker compose -f docker-compose.base44.yml exec -T bot npm test
 ```
-
-Pairing server tests are in `src/pairingServer.test.js`. Moderation logic tests are in `src/antiLink.test.js`.

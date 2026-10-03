@@ -13,13 +13,13 @@ export const config = {
     },
     pro: {
       name: 'Pro',
-      priceId: null, // set via Stripe dashboard — user provides STRIPE_PRO_PRICE_ID
+      priceId: process.env.STRIPE_PRO_PRICE_ID || null,
       maxBots: 5,
       features: ['Up to 5 bots', 'Anti-link & anti-abuse', 'Scheduled announcements', 'Quiz system', 'Greeter', 'Group lock/unlock'],
     },
     business: {
       name: 'Business',
-      priceId: null,
+      priceId: process.env.STRIPE_BUSINESS_PRICE_ID || null,
       maxBots: -1, // unlimited
       features: ['Unlimited bots', 'All Pro features', 'Priority support', 'Custom roles'],
     },

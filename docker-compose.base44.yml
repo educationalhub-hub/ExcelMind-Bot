@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16-slim
+    image: postgres:16-alpine
     restart: on-failure
     environment:
       POSTGRES_USER: botuser
@@ -32,7 +32,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: ["sh", "-ec", "npm ci && exec node --watch src/index.js"]
+    command: ["sh", "-ec", "npm install && exec node --watch src/index.js"]
     healthcheck:
       test:
         - CMD

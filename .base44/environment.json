@@ -4,8 +4,34 @@
   "startCommand": "docker compose -f docker-compose.base44.yml up -d",
   "secrets": [
     {
+      "name": "JWT_SECRET",
+      "description": "Secret used to sign JWT auth tokens for user sessions. Auto-generated for development.",
+      "requiredAtBoot": true,
+      "generatedForDevelopment": true
+    },
+    {
       "name": "PHONE_NUMBER",
-      "description": "Previously used for phone-code pairing. QR pairing no longer requires a phone number.",
+      "description": "Legacy — no longer used. QR pairing is per-user per-bot.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "STRIPE_SECRET_KEY",
+      "description": "Stripe API secret key from https://dashboard.stripe.com/apikeys. Required for billing/checkout to work.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "STRIPE_WEBHOOK_SECRET",
+      "description": "Stripe webhook signing secret (whsec_...) from https://dashboard.stripe.com/webhooks. Required to process subscription events.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "STRIPE_PRO_PRICE_ID",
+      "description": "Stripe recurring Price ID for the Pro plan ($9/mo). Create in Stripe Products and copy the price_... ID.",
+      "requiredAtBoot": false
+    },
+    {
+      "name": "STRIPE_BUSINESS_PRICE_ID",
+      "description": "Stripe recurring Price ID for the Business plan ($29/mo). Create in Stripe Products and copy the price_... ID.",
       "requiredAtBoot": false
     }
   ]
