@@ -20,6 +20,18 @@ const DEFAULT_ABUSIVE_WORDS = [
 
 const MAX_LOGS = 100;
 
+function getDefaultCapabilities(number, role) {
+  // Main account (bot3) performs all functions
+  if (number === '2349114112326') {
+    return { moderation: true, antiLink: true, announcements: true };
+  }
+  switch (role) {
+    case 'Guard': return { moderation: false, antiLink: true, announcements: false };
+    case 'Announcer': return { moderation: false, antiLink: false, announcements: true };
+    default: return { moderation: true, antiLink: true, announcements: false };
+  }
+}
+
 export class BotInstance {
   constructor({ id, number, displayName, role, authDir, capabilities, active }) {
     this.id = id;
@@ -28,7 +40,7 @@ export class BotInstance {
     this.role = role || 'Moderator';
     this.authDir = authDir;
     this.active = active !== false;
-    this.capabilities = capabilities || this.getDefaultCapabilities();
+    this.capabilities = capabilities || getDefaultCapabilities(number, role);
     this.sock = null;
     this.qrRevision = 0;
     this.reconnectTimer = null;
@@ -52,18 +64,6 @@ export class BotInstance {
       schedules: { ...config.defaultSchedules },
       rulesMessage: config.defaultRules,
     };
-  }
-
-  getDefaultCapabilities() {
-    // Main account (bot3) performs all functions
-    if (this.number === '2349114112326') {
-      return { moderation: true, antiLink: true, announcements: true };
-    }
-    switch (this.role) {
-      case 'Guard': return { moderation: false, antiLink: true, announcements: false };
-      case 'Announcer': return { moderation: false, antiLink: false, announcements: true };
-      default: return { moderation: true, antiLink: true, announcements: false };
-    }
   }
 
   updateCapabilities(newCapabilities) {
