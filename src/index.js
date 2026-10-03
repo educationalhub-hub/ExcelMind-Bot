@@ -4,25 +4,36 @@ import makeWASocket, {
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import P from 'pino';
-import { createPairingServer } from './pairingServer.js';
+import { createDashboardServer } from './dashboardServer.js';
+import { botState, addLog } from './botState.js';
 import {
   containsLink,
   resetLinkRegex,
   isAdmin,
+  containsAbuse,
 } from './antiLink.js';
 
-const { server, updatePairing } = createPairingServer();
-server.on('error', (error) => {
-  console.error('❌ QR pairing server failed:', error.message);
+const dashboard = createDashboardServer();
+dashboard.server.on('error', (error) => {
+  console.error('❌ Dashboard server failed:', error.message);
   process.exit(1);
 });
-server.listen(3000, '0.0.0.0', () => {
-  console.log('📱 WhatsApp QR pairing page is ready on port 3000.');
+dashboard.server.listen(3000, '0.0.0.0', () => {
+  console.log('📊 ExcelMind-Bot dashboard is ready on port 3000.');
 });
 
 function handleStartError(error) {
   console.error('❌ ExcelMind-Bot failed to start:', error);
-  updatePairing('error');
+  dashboard.updateStatus('error');
+}
+
+function isBotAdminInGroup(groupMetadata, botJid) {
+  if (!groupMetadata?.participants || !botJid) return false;
+  const botId = botJid.split(':')[0];
+  const member = groupMetadata.participants.find(
+    (p) => p.id?.split(':')[0] === botId
+  );
+  return member?.admin === 'admin' || member?.admin === 'superadmin';
 }
 
 async function startBot() {
@@ -35,35 +46,50 @@ async function startBot() {
     printQRInTerminal: false,
   });
 
+  dashboard.setSocket(sock);
+
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (update) => {
     const { connection, lastDisconnect, qr, isNewLogin } = update;
 
     if (connection === 'connecting' || isNewLogin) {
-      await updatePairing('connecting');
+      await dashboard.updateStatus('connecting');
     }
 
     if (qr) {
       try {
-        await updatePairing('scan', qr);
+        await dashboard.updateStatus('scan', qr);
         console.log('📱 Fresh WhatsApp QR code available in the preview.');
       } catch (error) {
         console.error('❌ QR generation failed:', error.message);
-        await updatePairing('error');
+        await dashboard.updateStatus('error');
       }
     }
 
     if (connection === 'open') {
-      await updatePairing('connected');
+      dashboard.setSocket(sock);
+      await dashboard.updateStatus('connected');
       console.log('✅ ExcelMind-Bot connected to WhatsApp!');
+      try {
+        await dashboard.refreshGroups();
+        addLog('bot_connected', {
+          details: `Connected as ${sock.user?.id || 'unknown'}`,
+        });
+      } catch (error) {
+        console.error('❌ Failed to fetch groups:', error.message);
+      }
     }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      await updatePairing(shouldReconnect ? 'reconnecting' : 'logged_out');
-      console.log(`❌ WhatsApp connection closed. (code: ${statusCode})`);
+      await dashboard.updateStatus(
+        shouldReconnect ? 'reconnecting' : 'logged_out'
+      );
+      console.log(
+        `❌ WhatsApp connection closed. (code: ${statusCode})`
+      );
 
       if (shouldReconnect) {
         console.log('🔄 Reconnecting...');
@@ -95,34 +121,56 @@ async function startBot() {
 
       if (!messageText) return;
 
-      resetLinkRegex();
-
-      if (!containsLink(messageText)) return;
-
       // Get the latest group metadata.
       const groupMetadata = await sock.groupMetadata(remoteJid);
+      const groupName = groupMetadata.subject || remoteJid;
+
+      // Only moderate groups where the bot is an admin.
+      if (!isBotAdminInGroup(groupMetadata, sock.user?.id)) {
+        return;
+      }
 
       const senderJid =
         message.key.participant ||
         message.participant;
 
-      // Admins and the group owner are allowed to send links.
+      // Admins and the group owner are allowed to send anything.
       if (isAdmin(senderJid, groupMetadata)) {
-        console.log('✅ Admin link allowed.');
         return;
       }
 
-      // Normal member sent a link.
+      resetLinkRegex();
+
+      const hasLink =
+        botState.settings.antiLink && containsLink(messageText);
+      const hasAbuse =
+        botState.settings.antiAbuse &&
+        containsAbuse(messageText, botState.settings.abusiveWords);
+
+      if (!hasLink && !hasAbuse) return;
+
+      // Delete the offending message.
       await sock.sendMessage(remoteJid, {
         delete: message.key,
       });
 
+      const action = hasLink ? 'link_deleted' : 'abuse_deleted';
+      const reason = hasLink ? 'link' : 'abusive language';
+
+      addLog(action, {
+        group: groupName,
+        groupJid: remoteJid,
+        sender: senderJid || 'unknown',
+        content: messageText.slice(0, 100),
+        reason,
+      });
+
       console.log(
-        `🗑️ Deleted link message from ${senderJid || 'unknown user'}`
+        `🗑️ Deleted ${reason} message from ${senderJid || 'unknown user'} in ${groupName}`
       );
 
     } catch (error) {
-      console.error('❌ Anti-link error:', error);
+      console.error('❌ Moderation error:', error);
     }
   });
 }

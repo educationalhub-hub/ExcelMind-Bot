@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ExcelMind-Bot Dashboard</title>
+    <style>
+      :root {
+        --primary: #14754e;
+        --bg: #f0f5f3;
+        --card: #fff;
+        --text: #18372c;
+        --muted: #52695e;
+        --border: #dce8e1;
+        --accent: #0d9668;
+        --danger: #dc2626;
+        --radius: 16px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.6 system-ui, -apple-system, sans-serif;
+        padding: 20px;
+      }
+      .container { max-width: 900px; margin: 0 auto; }
+
+      /* Header */
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 0;
+        margin-bottom: 8px;
+      }
+      .header h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+      .bot-id { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+      .status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .s-connected { background: #d1fae5; color: #065f46; }
+      .s-connecting, .s-scan, .s-reconnecting { background: #fef3c7; color: #92400e; }
+      .s-error, .s-logged_out { background: #fee2e2; color: #991b1b; }
+      .s-waiting { background: #e5e7eb; color: #374151; }
+
+      /* Cards */
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      .card h2 { margin: 0 0 16px; font-size: 18px; }
+
+      /* QR section */
+      .qr-area {
+        min-height: 280px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+      }
+      #qr { width: min(100%, 320px); height: auto; display: block; }
+      [hidden] { display: none !important; }
+      .qr-placeholder { padding: 20px; color: var(--muted); }
+      ol { margin: 12px 0 0; padding-left: 24px; }
+      li { padding: 3px 0; }
+
+      /* Stats */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .stat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+      }
+      .stat-value { font-size: 28px; font-weight: 700; color: var(--primary); }
+      .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+      /* Section header */
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .section-head h2 { margin: 0; }
+
+      /* Groups table */
+      .groups-table { width: 100%; }
+      .groups-table th, .groups-table td {
+        padding: 10px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+      }
+      .groups-table th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .badge-yes { background: #d1fae5; color: #065f46; }
+      .badge-no { background: #f3f4f6; color: #9ca3af; }
+
+      /* Activity log */
+      .log-list { max-height: 300px; overflow-y: auto; }
+      .log-entry {
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+      }
+      .log-entry:last-child { border-bottom: none; }
+      .log-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+      .log-action { font-weight: 600; }
+
+      /* Forms */
+      .form-group { margin-bottom: 16px; }
+      .form-group label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+      input[type="text"], textarea, select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font: inherit;
+        background: white;
+      }
+      textarea { resize: vertical; }
+
+      /* Toggle */
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 0;
+      }
+      .toggle-row label { font-size: 14px; }
+      .toggle {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        appearance: none;
+        background: #d1d5db;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background .2s;
+        flex-shrink: 0;
+      }
+      .toggle:checked { background: var(--accent); }
+      .toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px; left: 2px;
+        width: 20px; height: 20px;
+        background: white;
+        border-radius: 50%;
+        transition: transform .2s;
+      }
+      .toggle:checked::after { transform: translateX(20px); }
+
+      /* Buttons */
+      button {
+        padding: 10px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background .2s;
+      }
+      button:hover { background: var(--accent); }
+      button.secondary {
+        background: white;
+        color: var(--primary);
+        border: 1px solid var(--primary);
+        padding: 6px 14px;
+        font-size: 13px;
+      }
+      button.secondary:hover { background: #f0f5f3; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+
+      /* Toast */
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        z-index: 100;
+        opacity: 0;
+        transition: opacity .3s;
+      }
+      .toast.show { opacity: 1; }
+      .toast.success { background: #d1fae5; color: #065f46; }
+      .toast.error { background: #fee2e2; color: #991b1b; }
+
+      .muted { color: var(--muted); font-size: 14px; }
+      .empty { color: var(--muted); padding: 20px 0; text-align: center; }
+
+      @media (max-width: 600px) {
+        .stats { grid-template-columns: 1fr; }
+        .header { flex-direction: column; gap: 8px; align-items: flex-start; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <div>
+          <h1>📊 ExcelMind-Bot</h1>
+          <p id="bot-number" class="bot-id" hidden></p>
+        </div>
+        <span id="status-badge" class="status-badge s-waiting">Waiting…</span>
+      </header>
+
+      <!-- QR Pairing (shown when not connected) -->
+      <div id="qr-section" class="card">
+        <h2>Connect with QR Scan</h2>
+        <div class="qr-area">
+          <img id="qr" alt="WhatsApp QR code" hidden>
+          <p id="qr-placeholder" class="qr-placeholder">Waiting for WhatsApp to generate a QR code…</p>
+        </div>
+        <p id="qr-status" class="muted">Connecting to WhatsApp…</p>
+        <ol>
+          <li>Open <strong>WhatsApp</strong> on your phone.</li>
+          <li>Go to <strong>Settings</strong> → <strong>Linked devices</strong>.</li>
+          <li>Tap <strong>Link a device</strong> and scan the code above.</li>
+        </ol>
+      </div>
+
+      <!-- Dashboard (shown when connected) -->
+      <div id="dashboard" hidden>
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-value" id="stat-groups">0</div>
+            <div class="stat-label">Total Groups</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-admin">0</div>
+            <div class="stat-label">Admin In</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="stat-actions">0</div>
+            <div class="stat-label">Actions Logged</div>
+          </div>
+        </div>
+
+        <!-- Groups -->
+        <div class="card">
+          <div class="section-head">
+            <h2>Groups</h2>
+            <button class="secondary" id="refresh-groups">↻ Refresh</button>
+          </div>
+          <div id="groups-container">
+            <p class="muted">Loading groups…</p>
+          </div>
+        </div>
+
+        <!-- Activity -->
+        <div class="card">
+          <h2>Recent Activity</h2>
+          <div class="log-list" id="activity-container">
+            <p class="empty">No activity yet.</p>
+          </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="card">
+          <h2>Moderation Settings</h2>
+          <form id="settings-form">
+            <div class="toggle-row">
+              <input type="checkbox" class="toggle" id="anti-link" checked>
+              <label for="anti-link">Anti-Link — delete links from non-admins</label>
+            </div>
+            <div class="toggle-row">
+              <input type="checkbox" class="toggle" id="anti-abuse" checked>
+              <label for="anti-abuse">Anti-Abuse — delete abusive words from non-admins</label>
+            </div>
+            <div class="form-group">
+              <label for="abusive-words">Abusive words (comma-separated)</label>
+              <textarea id="abusive-words" rows="3" placeholder="fuck, shit, idiot…"></textarea>
+            </div>
+            <button type="submit">Save Settings</button>
+          </form>
+        </div>
+
+        <!-- Send Instruction -->
+        <div class="card">
+          <h2>Send Instruction</h2>
+          <form id="instruction-form">
+            <div class="form-group">
+              <label for="instruction-group">Send to</label>
+              <select id="instruction-group">
+                <option value="all">All groups where bot is admin</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="instruction-message">Message</label>
+              <textarea id="instruction-message" rows="3" placeholder="Type a message to send to the group(s)…"></textarea>
+            </div>
+            <button type="submit" id="send-instruction">Send</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+      const statusBadge = document.getElementById('status-badge');
+      const botNumberEl = document.getElementById('bot-number');
+      const qrSection = document.getElementById('qr-section');
+      const dashboardEl = document.getElementById('dashboard');
+      const qrImage = document.getElementById('qr');
+      const qrPlaceholder = document.getElementById('qr-placeholder');
+      const qrStatus = document.getElementById('qr-status');
+
+      const statusLabels = {
+        waiting: 'Waiting…',
+        connecting: 'Connecting…',
+        scan: 'Ready to scan',
+        connected: '● Connected',
+        reconnecting: 'Reconnecting…',
+        logged_out: 'Logged out',
+        error: 'Error',
+      };
+
+      const qrMessages = {
+        waiting: 'Waiting for a fresh QR code…',
+        connecting: 'Connecting to WhatsApp…',
+        scan: 'Ready to scan · QR refreshes automatically',
+        connected: '✓ WhatsApp connected',
+        reconnecting: 'Reconnecting… a fresh QR will appear shortly.',
+        logged_out: 'Logged out. Restart the bot to link again.',
+        error: 'Unable to generate a QR code.',
+      };
+
+      let currentSettings = null;
+
+      function showToast(msg, type = 'success') {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.className = 'toast ' + type + ' show';
+        setTimeout(() => toast.classList.remove('show'), 3000);
+      }
+
+      function setStatus(status, qr, botNumber) {
+        statusBadge.textContent = statusLabels[status] || status;
+        statusBadge.className = 'status-badge s-' + status;
+
+        const isConnected = status === 'connected';
+        qrSection.hidden = isConnected;
+        dashboardEl.hidden = !isConnected;
+
+        if (botNumber) {
+          botNumberEl.hidden = false;
+          botNumberEl.textContent = 'Bot: ' + botNumber.split('@')[0];
+        }
+
+        if (!isConnected) {
+          qrStatus.textContent = qrMessages[status] || qrMessages.waiting;
+          if (qr) {
+            qrImage.hidden = false;
+            qrPlaceholder.hidden = true;
+            if (qrImage.src !== qr) qrImage.src = qr;
+          } else {
+            qrImage.hidden = true;
+            qrPlaceholder.hidden = false;
+            qrPlaceholder.textContent = qrMessages[status] || qrMessages.waiting;
+          }
+        }
+      }
+
+      function renderGroups(groups) {
+        const container = document.getElementById('groups-container');
+        if (!groups.length) {
+          container.innerHTML = '<p class="empty">No groups found. Make sure the bot is added to groups.</p>';
+          return;
+        }
+        const adminCount = groups.filter((g) => g.isAdmin).length;
+        document.getElementById('stat-groups').textContent = groups.length;
+        document.getElementById('stat-admin').textContent = adminCount;
+
+        let html = '<table class="groups-table"><thead><tr><th>Group Name</th><th>Members</th><th>Bot Admin?</th></tr></thead><tbody>';
+        for (const g of groups) {
+          html += '<tr><td>' + escapeHtml(g.name) + '</td><td>' + g.participants + '</td><td>';
+          html += g.isAdmin
+            ? '<span class="badge badge-yes">✓ Admin</span>'
+            : '<span class="badge badge-no">Member</span>';
+          html += '</td></tr>';
+        }
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+        // Populate instruction group dropdown
+        const select = document.getElementById('instruction-group');
+        const currentValue = select.value;
+        select.innerHTML = '<option value="all">All groups where bot is admin</option>';
+        for (const g of groups) {
+          if (g.isAdmin) {
+            select.innerHTML += '<option value="' + g.jid + '">' + escapeHtml(g.name) + '</option>';
+          }
+        }
+        select.value = currentValue;
+      }
+
+      function renderLogs(logs) {
+        const container = document.getElementById('activity-container');
+        document.getElementById('stat-actions').textContent = logs.length;
+        if (!logs.length) {
+          container.innerHTML = '<p class="empty">No activity yet.</p>';
+          return;
+        }
+        const actionLabels = {
+          link_deleted: '🗑️ Link deleted',
+          abuse_deleted: '🗑️ Abuse deleted',
+          instruction_sent: '📤 Instruction sent',
+          instruction_broadcast: '📢 Broadcast sent',
+          instruction_error: '❌ Instruction failed',
+          settings_update: '⚙️ Settings updated',
+          bot_connected: '✅ Bot connected',
+          groups_refreshed: '🔄 Groups refreshed',
+        };
+        let html = '';
+        for (const log of logs.slice(0, 50)) {
+          const time = new Date(log.timestamp).toLocaleTimeString();
+          const label = actionLabels[log.action] || log.action;
+          html += '<div class="log-entry"><span class="log-action">' + label + '</span>';
+          if (log.group) html += ' · ' + escapeHtml(log.group);
+          if (log.sender) html += ' · from ' + escapeHtml(log.sender.split('@')[0]);
+          html += '<div class="log-meta">' + time;
+          if (log.content) html += ' · "' + escapeHtml(log.content) + '"';
+          if (log.details) html += ' · ' + escapeHtml(log.details);
+          if (log.error) html += ' · ' + escapeHtml(log.error);
+          html += '</div></div>';
+        }
+        container.innerHTML = html;
+      }
+
+      function renderSettings(settings) {
+        currentSettings = settings;
+        document.getElementById('anti-link').checked = settings.antiLink;
+        document.getElementById('anti-abuse').checked = settings.antiAbuse;
+        document.getElementById('abusive-words').value = settings.abusiveWords.join(', ');
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = String(text || '');
+        return div.innerHTML;
+      }
+
+      async function poll() {
+        try {
+          const res = await fetch('/api/status', { cache: 'no-store' });
+          const status = await res.json();
+          setStatus(status.connection, status.qr, status.botNumber);
+
+          if (status.connection === 'connected') {
+            const [groupsRes, logsRes, settingsRes] = await Promise.all([
+              fetch('/api/groups', { cache: 'no-store' }),
+              fetch('/api/logs', { cache: 'no-store' }),
+              fetch('/api/settings', { cache: 'no-store' }),
+            ]);
+            renderGroups(await groupsRes.json());
+            renderLogs(await logsRes.json());
+            if (!currentSettings) renderSettings(await settingsRes.json());
+          }
+        } catch {
+          statusBadge.textContent = 'Connection lost…';
+          statusBadge.className = 'status-badge s-error';
+        }
+        setTimeout(poll, 5000);
+      }
+
+      // Refresh groups button
+      document.getElementById('refresh-groups').addEventListener('click', async () => {
+        const btn = document.getElementById('refresh-groups');
+        btn.disabled = true;
+        btn.textContent = 'Loading…';
+        try {
+          const res = await fetch('/api/groups/refresh', { method: 'POST' });
+          if (res.ok) {
+            const groups = await res.json();
+            renderGroups(groups);
+            showToast('Groups refreshed');
+          } else {
+            showToast('Failed to refresh', 'error');
+          }
+        } catch {
+          showToast('Network error', 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = '↻ Refresh';
+      });
+
+      // Settings form
+      document.getElementById('settings-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const antiLink = document.getElementById('anti-link').checked;
+        const antiAbuse = document.getElementById('anti-abuse').checked;
+        const abusiveWords = document.getElementById('abusive-words').value
+          .split(',').map((w) => w.trim()).filter(Boolean);
+        try {
+          const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ antiLink, antiAbuse, abusiveWords }),
+          });
+          if (res.ok) {
+            renderSettings(await res.json());
+            showToast('Settings saved');
+          } else {
+            showToast('Failed to save', 'error');
+          }
+        } catch {
+          showToast('Network error', 'error');
+        }
+      });
+
+      // Instruction form
+      document.getElementById('instruction-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const groupJid = document.getElementById('instruction-group').value;
+        const message = document.getElementById('instruction-message').value.trim();
+        if (!message) return;
+        const btn = document.getElementById('send-instruction');
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        try {
+          const res = await fetch('/api/instruction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupJid, message }),
+          });
+          if (res.ok) {
+            const result = await res.json();
+            showToast('Sent to ' + result.sent + ' group' + (result.sent !== 1 ? 's' : ''));
+            document.getElementById('instruction-message').value = '';
+          } else {
+            const err = await res.json();
+            showToast(err.error || 'Failed to send', 'error');
+          }
+        } catch {
+          showToast('Network error', 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Send';
+      });
+
+      poll();
+    </script>
+  </body>
+</html>

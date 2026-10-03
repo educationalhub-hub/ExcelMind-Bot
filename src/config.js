@@ -3,9 +3,13 @@ export const config = {
 
   antiLink: {
     enabled: true,
-
     deleteMessages: true,
+    allowedAdmins: true,
+  },
 
+  antiAbuse: {
+    enabled: true,
+    deleteMessages: true,
     allowedAdmins: true,
   },
 };

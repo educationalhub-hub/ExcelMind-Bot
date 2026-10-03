@@ -1,14 +1,67 @@
 # ExcelMind-Bot
 
-## Base44 pairing and verification
+WhatsApp group moderation bot using Baileys (`@whiskeysockets/baileys`). The bot deletes links and abusive words sent by non-admins in groups where it is an admin. A built-in dashboard on port 3000 shows connection status, group list, activity log, moderation settings, and a message broadcast tool.
 
-- The preview on port 3000 is a minimal QR pairing page, not the moderation interface. It renders Baileys `connection.update.qr` locally and polls `/api/pairing` for refreshed QR images and connection status.
-- Do not call `requestPairingCode` in QR mode: it sets `creds.me` even before successful registration, causing incomplete phone-code credentials to try logging in instead of generating a QR.
-- If switching away from a failed phone-code attempt, stop the bot first and reset only **unregistered** credentials. Never erase a registered WhatsApp session. Do not log or commit QR payloads or auth credentials.
-- Auth state persists in the gitignored `auth_info/` directory. `PHONE_NUMBER` is no longer needed for QR pairing; an existing dashboard value may remain unused.
-- Compose runs Node's import-based `--watch` mode. It watches imported source, not auth files read/written through the filesystem, so credential saves must not restart the bot. The pairing HTML is read on each page request; browser refresh is needed for HTML changes.
-- Dependency installation belongs to Compose startup (`npm ci`). Install or update dependencies in a Node container and keep the lockfile synchronized.
-- Healthchecks request both `/` and `/api/pairing` in the same bot process. A healthy HTTP service does **not** mean WhatsApp is linked; verify `/api/pairing` reports `connected` or logs say `ExcelMind-Bot connected to WhatsApp!`.
-- Verify QR display with `/api/pairing`: status `scan` and a PNG data URL indicate a fresh linking QR. After a scan, Baileys normally requests a connection restart; the existing reconnect delay is 10 seconds.
-- Run tests with `docker compose -f docker-compose.base44.yml exec -T bot npm test`. Pairing tests cover refresh, no-cache responses, clearing on connect/disconnect, and stale-image race handling. Actual QR scanning requires the user's WhatsApp phone and cannot be fully automated here.
-- Only the pairing flow and supporting HTTP display have changed; link moderation remains in `src/index.js` and `src/antiLink.js`.
+## Running in Base44
+
+```sh
+docker compose -f docker-compose.base44.yml up -d --build
+```
+
+- Node 22 runtime, source bind-mounted at `/app`.
+- Dependencies installed on startup via `npm ci` (lockfile-preserving).
+- `PHONE_NUMBER` secret is no longer required for QR pairing.
+- Auth state persists in `./auth_info/` (gitignored).
+- Bot runs with `node --watch src/index.js` for live reload on source changes.
+
+## Dashboard (port 3000)
+
+The dashboard replaces the old QR-only pairing page. When the bot is not connected, it shows a QR code for linking. When connected, it shows:
+
+- **Stats**: total groups, groups where bot is admin, actions logged.
+- **Groups**: list of all groups the bot is in, with admin badge and member count. Refresh button re-fetches from WhatsApp.
+- **Activity**: real-time log of deleted messages, settings changes, and broadcast/instruction messages.
+- **Settings**: toggle anti-link and anti-abuse, edit the abusive words list.
+- **Send Instruction**: send a message to a specific admin group or broadcast to all admin groups.
+
+API endpoints (all `no-store`):
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/status` | Connection status, QR data URL, bot number |
+| GET | `/api/groups` | List of groups with admin flag |
+| POST | `/api/groups/refresh` | Re-fetch groups from WhatsApp |
+| GET | `/api/logs` | Recent activity log (max 100 entries) |
+| GET | `/api/settings` | Current moderation settings |
+| POST | `/api/settings` | Update settings (antiLink, antiAbuse, abusiveWords) |
+| POST | `/api/instruction` | Send message to a group or broadcast (body: `{ groupJid, message }`) |
+
+## Moderation rules
+
+The bot **only moderates groups where it is an admin**. In those groups:
+
+- Links sent by non-admins are deleted (when anti-link is enabled).
+- Abusive words sent by non-admins are deleted (when anti-abuse is enabled).
+- Admins and group owners can always send anything.
+- All deletions are logged to the activity feed.
+
+## Key files
+
+- `src/index.js` — bot entry point; connects to WhatsApp, runs moderation, serves dashboard.
+- `src/dashboardServer.js` — HTTP server for the dashboard and API endpoints.
+- `src/dashboard.html` — dashboard UI (groups, activity, settings, instructions).
+- `src/botState.js` — shared in-memory state (connection, groups, logs, settings).
+- `src/antiLink.js` — link detection, abuse detection, admin check helpers.
+- `src/config.js` — default configuration constants.
+
+## Verifying the app started
+
+Check logs: `docker compose -f docker-compose.base44.yml logs bot`. A successful start prints "📊 ExcelMind-Bot dashboard is ready on port 3000." and then "✅ ExcelMind-Bot connected to WhatsApp!" after linking. The dashboard at `/` shows the connection status and group list.
+
+## Tests
+
+```sh
+docker compose -f docker-compose.base44.yml exec -T bot npm test
+```
+
+Pairing server tests are in `src/pairingServer.test.js`. Moderation logic tests are in `src/antiLink.test.js`.

@@ -23,3 +23,13 @@ export function isAdmin(participant, groupMetadata) {
 
   return member.admin === 'admin' || member.admin === 'superadmin';
 }
+
+export function containsAbuse(text = '', words = []) {
+  if (!text || !words.length) return false;
+  return words.some((word) => {
+    const escaped = word
+      .toLowerCase()
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
+  });
+}
