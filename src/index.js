@@ -4,6 +4,19 @@ import makeWASocket, {
   useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
 import P from 'pino';
+
+// Suppress harmless libsignal "Bad MAC" / "Failed to decrypt" noise from stale sessions.
+const SUPPRESS_PATTERNS = ['Bad MAC', 'Failed to decrypt message with any known session'];
+function shouldSuppress(...args) {
+  return SUPPRESS_PATTERNS.some((p) => args.map(String).join(' ').includes(p));
+}
+const _origError = console.error;
+console.error = (...args) => { if (!shouldSuppress(...args)) _origError.apply(console, args); };
+const _origStderr = process.stderr.write.bind(process.stderr);
+process.stderr.write = (chunk, ...rest) => {
+  if (typeof chunk === 'string' && SUPPRESS_PATTERNS.some((p) => chunk.includes(p))) return true;
+  return _origStderr(chunk, ...rest);
+};
 import { createDashboardServer } from './dashboardServer.js';
 import { botState, addLog } from './botState.js';
 import {
