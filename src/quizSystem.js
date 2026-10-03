@@ -23,7 +23,7 @@ export function getQuizQuestion(index) {
 export function createQuizState() {
   return {
     quizTime: '12:00',
-    welcomeMessage: '👋 Welcome to the group! Please read the group rules and enjoy your stay. — *ExcelMind-Bot* 🤖',
+    welcomeMessage: '👋 Welcome to the group! Please read the group rules and enjoy your stay. — *OmniMod* 🤖',
     quizIndex: 0,
     quizzesSent: 0,
     activePolls: {}, // pollKey -> { groupJid, correctIndex, votes: { participantJid: [selectedIndexes] } }

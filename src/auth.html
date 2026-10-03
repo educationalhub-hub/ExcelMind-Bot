@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ExcelMind-Bot — Sign in</title>
+<title>OmniMod — Sign in</title>
 <style>
-:root{--primary:#14754e;--bg:#f0f5f3;--card:#fff;--text:#18372c;--muted:#52695e;--border:#dce8e1;--accent:#0d9668;--danger:#dc2626;--radius:16px}
+:root{--primary:#6366f1;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--danger:#dc2626;--radius:16px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}
 .auth-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:40px;max-width:420px;width:100%}
-.auth-card h1{font-size:28px;font-weight:800;margin-bottom:8px;text-align:center}
+.auth-card h1{font-size:28px;font-weight:800;margin-bottom:8px;text-align:center;color:var(--primary)}
 .auth-card p.subtitle{text-align:center;color:var(--muted);margin-bottom:28px;font-size:15px}
-.tabs{display:flex;gap:8px;margin-bottom:24px;background:#e6f4ea;border-radius:10px;padding:4px}
+.tabs{display:flex;gap:8px;margin-bottom:24px;background:#eef2ff;border-radius:10px;padding:4px}
 .tab{flex:1;text-align:center;padding:10px;border-radius:8px;cursor:pointer;font-weight:600;font-size:15px;color:var(--muted);transition:all .15s;border:none;background:transparent}
 .tab.active{background:var(--primary);color:#fff}
 .form-group{margin-bottom:18px}
@@ -28,7 +28,7 @@ body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.6 syste
 </head>
 <body>
 <div class="auth-card">
-  <h1>🤖 ExcelMind-Bot</h1>
+  <h1>🤖 OmniMod</h1>
   <p class="subtitle" id="subtitle">Welcome back. Log in to manage your bots.</p>
   <div class="error-msg" id="error"></div>
   <div class="tabs">
@@ -64,7 +64,6 @@ function switchMode(m) {
   document.getElementById('subtitle').textContent = m === 'signup' ? 'Create your account and start building bots.' : 'Welcome back. Log in to manage your bots.';
 }
 
-// Auto-detect mode from URL
 if (location.pathname === '/signup') switchMode('signup');
 
 async function submitForm(e) {

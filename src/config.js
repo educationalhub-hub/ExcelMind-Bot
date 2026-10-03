@@ -1,3 +1,6 @@
+export const APP_NAME = 'OmniMod';
+export const APP_TAGLINE = 'WhatsApp & Telegram Bot Management';
+
 export const config = {
   botDisplayName: 'Bot',
   muteDurationMs: 12 * 60 * 60 * 1000, // 12 hours
@@ -9,7 +12,7 @@ export const config = {
       name: 'Free',
       priceId: null, // no Stripe price
       maxBots: 1,
-      features: ['1 WhatsApp bot', 'Anti-link moderation', 'Basic dashboard'],
+      features: ['1 bot (WhatsApp or Telegram)', 'Anti-link moderation', 'Basic dashboard'],
     },
     pro: {
       name: 'Pro',
@@ -25,6 +28,9 @@ export const config = {
     },
   },
 
+  // Gated capabilities — free plan can only use these
+  freeCapabilities: ['antiLink'],
+
   defaultRules: `📋 *GROUP RULES & REGULATIONS*
 
 1️⃣ No posting of links without admin permission
@@ -38,7 +44,7 @@ export const config = {
 
 🔄 The group opens and closes at scheduled times daily.
 
-— *ExcelMind-Bot* 🤖`,
+— *${APP_NAME}* 🤖`,
 
   defaultSchedules: {
     openTime: '08:00',

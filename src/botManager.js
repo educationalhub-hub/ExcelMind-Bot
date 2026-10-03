@@ -1,13 +1,13 @@
-import { mkdir, rm, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { BotInstance } from './BotInstance.js';
+import { TelegramBotInstance } from './telegramBotInstance.js';
 import { config } from './config.js';
 import { pool } from './db.js';
 
 export class BotManager {
   constructor() {
-    this.bots = new Map(); // botId -> BotInstance
+    this.bots = new Map(); // botId -> BotInstance | TelegramBotInstance
   }
 
   // Load all bots from database on startup
@@ -15,15 +15,7 @@ export class BotManager {
     try {
       const result = await pool.query('SELECT * FROM bots ORDER BY created_at');
       for (const row of result.rows) {
-        const bot = new BotInstance({
-          id: row.id,
-          number: row.phone_number,
-          displayName: row.display_name,
-          role: row.role,
-          authDir: row.auth_dir,
-          active: row.active,
-          capabilities: row.capabilities,
-        });
+        const bot = this.createInstanceFromRow(row);
         this.bots.set(bot.id, bot);
         if (bot.active) {
           bot.start().catch((e) => console.error(`❌ ${bot.id} start error:`, e));
@@ -38,9 +30,32 @@ export class BotManager {
     }
   }
 
+  // Create the right instance type from a DB row
+  createInstanceFromRow(row) {
+    const common = {
+      id: row.id,
+      displayName: row.display_name,
+      role: row.role,
+      capabilities: row.capabilities,
+      active: row.active,
+    };
+
+    if (row.platform === 'telegram') {
+      return new TelegramBotInstance({
+        ...common,
+        token: row.telegram_token,
+      });
+    }
+
+    return new BotInstance({
+      ...common,
+      number: row.phone_number,
+      authDir: row.auth_dir,
+    });
+  }
+
   // Create a bot for a specific user
-  async createBot(userId, { phoneNumber, displayName, role }) {
-    // Check plan limits
+  async createBot(userId, { platform, phoneNumber, telegramToken, displayName, role }) {
     const userResult = await pool.query('SELECT plan FROM users WHERE id = $1', [userId]);
     const user = userResult.rows[0];
     if (!user) throw new Error('User not found');
@@ -51,35 +66,43 @@ export class BotManager {
       throw new Error(`Your ${plan.name} plan allows ${plan.maxBots} bot(s). Upgrade to create more.`);
     }
 
-    // Generate unique bot ID
+    const botPlatform = platform || 'whatsapp';
     const botId = `bot_${userId}_${Date.now()}`;
-    const authDir = join(config.authDirRoot, `user_${userId}`, botId);
-
-    // Ensure directory exists
-    await mkdir(authDir, { recursive: true });
-
     const capabilities = this.getDefaultCapabilities(role);
 
-    // Save to database
+    if (botPlatform === 'telegram') {
+      if (!telegramToken) throw new Error('Telegram bot token is required');
+
+      await pool.query(
+        `INSERT INTO bots (id, user_id, platform, telegram_token, display_name, role, auth_dir, active, capabilities)
+         VALUES ($1, $2, 'telegram', $3, $4, $5, NULL, true, $6)`,
+        [botId, userId, telegramToken, displayName || null, role || 'Moderator', JSON.stringify(capabilities)],
+      );
+
+      const bot = new TelegramBotInstance({
+        id: botId, token: telegramToken, displayName, role: role || 'Moderator', capabilities, active: true,
+      });
+      this.bots.set(botId, bot);
+      bot.start().catch((e) => console.error(`❌ ${botId} start error:`, e));
+      return bot;
+    }
+
+    // WhatsApp
+    if (!phoneNumber) throw new Error('Phone number is required');
+    const authDir = join(config.authDirRoot, `user_${userId}`, botId);
+    await mkdir(authDir, { recursive: true });
+
     await pool.query(
-      `INSERT INTO bots (id, user_id, phone_number, display_name, role, auth_dir, active, capabilities)
-       VALUES ($1, $2, $3, $4, $5, $6, true, $7)`,
-      [botId, userId, phoneNumber || null, displayName || null, role || 'Moderator', authDir, JSON.stringify(capabilities)],
+      `INSERT INTO bots (id, user_id, platform, phone_number, display_name, role, auth_dir, active, capabilities)
+       VALUES ($1, $2, 'whatsapp', $3, $4, $5, $6, true, $7)`,
+      [botId, userId, phoneNumber, displayName || null, role || 'Moderator', authDir, JSON.stringify(capabilities)],
     );
 
-    // Create and start instance
     const bot = new BotInstance({
-      id: botId,
-      number: phoneNumber,
-      displayName,
-      role: role || 'Moderator',
-      authDir,
-      capabilities,
-      active: true,
+      id: botId, number: phoneNumber, displayName, role: role || 'Moderator', authDir, capabilities, active: true,
     });
     this.bots.set(botId, bot);
     bot.start().catch((e) => console.error(`❌ ${botId} start error:`, e));
-
     return bot;
   }
 
@@ -90,7 +113,9 @@ export class BotManager {
       const bot = this.bots.get(row.id);
       return {
         id: row.id,
+        platform: row.platform,
         phoneNumber: row.phone_number,
+        telegramToken: row.telegram_token,
         displayName: row.display_name,
         role: row.role,
         active: row.active,
@@ -179,11 +204,13 @@ export class BotManager {
     bot.stop();
     this.bots.delete(botId);
 
-    // Clean auth directory
-    try {
-      await rm(bot.authDir, { recursive: true, force: true });
-    } catch (e) {
-      console.error(`❌ ${botId} auth cleanup error:`, e.message);
+    // Clean auth directory (WhatsApp only)
+    if (bot.authDir) {
+      try {
+        await rm(bot.authDir, { recursive: true, force: true });
+      } catch (e) {
+        console.error(`❌ ${botId} auth cleanup error:`, e.message);
+      }
     }
 
     await pool.query('DELETE FROM bots WHERE id = $1 AND user_id = $2', [botId, userId]);

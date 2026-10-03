@@ -1,10 +1,12 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import bcrypt from 'bcryptjs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { requireAuth, authRouter, COOKIE_NAME } from './auth.js';
+import { requireAuth, requireAdmin, authRouter, COOKIE_NAME } from './auth.js';
 import { billingRouter, handleStripeWebhook } from './billing.js';
-import { config } from './config.js';
+import { config, APP_NAME } from './config.js';
+import { pool } from './db.js';
 
 async function sendHtml(res, file) {
   try {
@@ -29,6 +31,7 @@ export function createApp(botManager) {
   app.get('/login', (req, res) => sendHtml(res, './auth.html'));
   app.get('/signup', (req, res) => sendHtml(res, './auth.html'));
   app.get('/dashboard', (req, res) => sendHtml(res, './dashboard.html'));
+  app.get('/admin', (req, res) => sendHtml(res, './admin.html'));
 
   // --- API: Auth ---
   app.use('/api/auth', authRouter());
@@ -42,6 +45,225 @@ export function createApp(botManager) {
     const primary = bots[0] || {};
     res.json({ connection: primary.connection || 'waiting', bots: bots.length });
   });
+
+  // --- API: Profile (behind auth) ---
+  app.get('/api/profile', requireAuth, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT id, email, name, plan, role, created_at FROM users WHERE id = $1', [req.user.id]);
+      res.json(result.rows[0] || { error: 'Not found' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+  });
+
+  app.put('/api/profile', requireAuth, async (req, res) => {
+    const { name, email } = req.body || {};
+    try {
+      const setClauses = [];
+      const params = [];
+      let idx = 1;
+      if (name !== undefined) { setClauses.push(`name = $${idx++}`); params.push(name); }
+      if (email !== undefined) {
+        // Check email isn't taken
+        const existing = await pool.query('SELECT id FROM users WHERE email = $1 AND id != $2', [email.toLowerCase(), req.user.id]);
+        if (existing.rows.length) return res.status(409).json({ error: 'Email already in use' });
+        setClauses.push(`email = $${idx++}`);
+        params.push(email.toLowerCase());
+      }
+      if (setClauses.length) {
+        params.push(req.user.id);
+        await pool.query(`UPDATE users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+      }
+      const result = await pool.query('SELECT id, email, name, plan, role, created_at FROM users WHERE id = $1', [req.user.id]);
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
+  });
+
+  app.put('/api/profile/password', requireAuth, async (req, res) => {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    try {
+      const result = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+      const user = result.rows[0];
+      const valid = await bcrypt.compare(currentPassword || '', user.password_hash);
+      if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+
+      const hash = await bcrypt.hash(newPassword, 10);
+      await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.user.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to change password' });
+    }
+  });
+
+  // --- API: Admin (behind auth + admin) ---
+  const adminApi = express.Router();
+  adminApi.use(requireAuth, requireAdmin);
+
+  // Stats
+  adminApi.get('/stats', async (req, res) => {
+    try {
+      const totalUsers = await pool.query('SELECT COUNT(*) FROM users');
+      const activeUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_active = true');
+      const paidUsers = await pool.query("SELECT COUNT(*) FROM users WHERE plan != 'free'");
+      const totalBots = await pool.query('SELECT COUNT(*) FROM bots');
+      const activeBots = await pool.query('SELECT COUNT(*) FROM bots WHERE active = true');
+      const waBots = await pool.query("SELECT COUNT(*) FROM bots WHERE platform = 'whatsapp'");
+      const tgBots = await pool.query("SELECT COUNT(*) FROM bots WHERE platform = 'telegram'");
+      const planBreakdown = await pool.query('SELECT plan, COUNT(*) as count FROM users GROUP BY plan');
+      res.json({
+        totalUsers: parseInt(totalUsers.rows[0].count, 10),
+        activeUsers: parseInt(activeUsers.rows[0].count, 10),
+        paidUsers: parseInt(paidUsers.rows[0].count, 10),
+        totalBots: parseInt(totalBots.rows[0].count, 10),
+        activeBots: parseInt(activeBots.rows[0].count, 10),
+        waBots: parseInt(waBots.rows[0].count, 10),
+        tgBots: parseInt(tgBots.rows[0].count, 10),
+        planBreakdown: planBreakdown.rows,
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  // List all users
+  adminApi.get('/users', async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT u.id, u.email, u.name, u.plan, u.role, u.is_active, u.created_at,
+                (SELECT COUNT(*) FROM bots WHERE user_id = u.id) as bot_count
+         FROM users u ORDER BY u.created_at DESC`
+      );
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch users' });
+    }
+  });
+
+  // Update user (activate/deactivate, change role, change plan)
+  adminApi.put('/users/:id', async (req, res) => {
+    const { id } = req.params;
+    const { isActive, role, plan } = req.body || {};
+    try {
+      const setClauses = [];
+      const params = [];
+      let idx = 1;
+      if (isActive !== undefined) { setClauses.push(`is_active = $${idx++}`); params.push(isActive); }
+      if (role !== undefined) {
+        if (!['founder', 'admin', 'user'].includes(role)) return res.status(400).json({ error: 'Invalid role' });
+        // Protect founder from being demoted
+        const target = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+        if (target.rows[0]?.role === 'founder' && role !== 'founder' && req.user.role !== 'founder') {
+          return res.status(403).json({ error: 'Cannot modify founder role' });
+        }
+        setClauses.push(`role = $${idx++}`);
+        params.push(role);
+      }
+      if (plan !== undefined) {
+        if (!['free', 'pro', 'business'].includes(plan)) return res.status(400).json({ error: 'Invalid plan' });
+        setClauses.push(`plan = $${idx++}`);
+        params.push(plan);
+      }
+      if (setClauses.length) {
+        params.push(id);
+        await pool.query(`UPDATE users SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+      }
+      const result = await pool.query('SELECT id, email, name, plan, role, is_active FROM users WHERE id = $1', [id]);
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
+  // Delete user
+  adminApi.delete('/users/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+      // Protect founder from deletion
+      const target = await pool.query('SELECT role FROM users WHERE id = $1', [id]);
+      if (!target.rows.length) return res.status(404).json({ error: 'User not found' });
+      if (target.rows[0].role === 'founder') return res.status(403).json({ error: 'Cannot delete founder account' });
+      if (String(id) === String(req.user.id)) return res.status(403).json({ error: 'Cannot delete your own account' });
+
+      // Stop and delete user's bots
+      const userBots = await pool.query('SELECT id FROM bots WHERE user_id = $1', [id]);
+      for (const row of userBots.rows) {
+        const bot = botManager.getBot(row.id);
+        if (bot) { bot.stop(); botManager.bots.delete(row.id); }
+      }
+
+      await pool.query('DELETE FROM users WHERE id = $1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete user' });
+    }
+  });
+
+  // Announcements
+  adminApi.get('/announcements', async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT a.*, u.email as author_email FROM announcements a
+         JOIN users u ON a.author_id = u.id ORDER BY a.created_at DESC`
+      );
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch announcements' });
+    }
+  });
+
+  adminApi.post('/announcements', async (req, res) => {
+    const { title, message, type } = req.body || {};
+    if (!title || !message) return res.status(400).json({ error: 'Title and message are required' });
+    try {
+      const result = await pool.query(
+        'INSERT INTO announcements (author_id, title, message, type) VALUES ($1, $2, $3, $4) RETURNING *',
+        [req.user.id, title, message, type || 'announcement']
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to create announcement' });
+    }
+  });
+
+  adminApi.delete('/announcements/:id', async (req, res) => {
+    try {
+      await pool.query('DELETE FROM announcements WHERE id = $1', [req.params.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete announcement' });
+    }
+  });
+
+  // Broadcast announcement to all active users' bot groups
+  adminApi.post('/announcements/:id/broadcast', async (req, res) => {
+    try {
+      const annResult = await pool.query('SELECT * FROM announcements WHERE id = $1', [req.params.id]);
+      if (!annResult.rows.length) return res.status(404).json({ error: 'Announcement not found' });
+      const ann = annResult.rows[0];
+
+      let sent = 0;
+      for (const bot of botManager.bots.values()) {
+        if (bot.state.connection !== 'connected') continue;
+        const adminGroups = (bot.state.groups || []).filter((g) => g.isAdmin);
+        for (const group of adminGroups) {
+          try {
+            await bot.sendInstruction(group.jid, `📢 ${ann.title}\n\n${ann.message}`);
+            sent++;
+          } catch (e) { /* ignore individual failures */ }
+        }
+      }
+      res.json({ sent });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to broadcast' });
+    }
+  });
+
+  app.use('/api/admin', adminApi);
 
   // --- API: Bot management (all behind auth) ---
   const botApi = express.Router();
@@ -57,21 +279,21 @@ export function createApp(botManager) {
     }
   });
 
-  // Create a new bot
+  // Create a new bot (WhatsApp or Telegram)
   botApi.post('/bots', async (req, res) => {
-    const { phoneNumber, displayName, role } = req.body || {};
-    if (!phoneNumber) {
-      return res.status(400).json({ error: 'Phone number is required' });
-    }
+    const { platform, phoneNumber, telegramToken, displayName, role } = req.body || {};
     try {
-      const bot = await botManager.createBot(req.user.id, { phoneNumber, displayName, role });
+      const bot = await botManager.createBot(req.user.id, {
+        platform: platform || 'whatsapp',
+        phoneNumber, telegramToken, displayName, role,
+      });
       res.json(bot.getStatusSummary());
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  // Bot-scoped routes: /api/bots/:botId/...
+  // Bot-scoped routes
   botApi.get('/bots/:botId/status', async (req, res) => {
     const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
     if (!bot) return res.status(404).json({ error: 'Bot not found' });
@@ -81,6 +303,7 @@ export function createApp(botManager) {
       botNumber: bot.state.botNumber,
       displayName: bot.displayName,
       role: bot.role,
+      platform: bot.platform || 'whatsapp',
       number: bot.number,
       active: bot.active,
       capabilities: bot.capabilities,
@@ -146,7 +369,7 @@ export function createApp(botManager) {
     if (!bot) return res.status(404).json({ error: 'Bot not found' });
     if (bot.state.connection !== 'connected') return res.status(503).json({ error: 'Bot not connected' });
     try {
-      await bot.refreshGroups();
+      if (bot.refreshGroups) await bot.refreshGroups();
       res.json(bot.state.groups);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -176,7 +399,7 @@ export function createApp(botManager) {
   botApi.post('/bots/:botId/instruction', async (req, res) => {
     const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
     if (!bot) return res.status(404).json({ error: 'Bot not found' });
-    if (bot.state.connection !== 'connected' || !bot.sock) return res.status(503).json({ error: 'Bot not connected' });
+    if (bot.state.connection !== 'connected' || !bot.sock && !bot.bot) return res.status(503).json({ error: 'Bot not connected' });
     const { message, groupJid } = req.body || {};
     if (!message) return res.status(400).json({ error: 'Message is required' });
     try {
@@ -244,7 +467,7 @@ export function createApp(botManager) {
   botApi.post('/bots/:botId/quiz/send', async (req, res) => {
     const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
     if (!bot) return res.status(404).json({ error: 'Bot not found' });
-    if (bot.state.connection !== 'connected' || !bot.sock) return res.status(503).json({ error: 'Bot not connected' });
+    if (bot.state.connection !== 'connected') return res.status(503).json({ error: 'Bot not connected' });
     const { groupJid } = req.body || {};
     try {
       let count = 0;

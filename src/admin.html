@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OmniMod — Admin Dashboard</title>
+<style>
+:root{--primary:#6366f1;--primary-dark:#4f46e5;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--accent:#818cf8;--danger:#dc2626;--success:#16a34a;--radius:16px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,sans-serif;padding:20px}
+.container{max-width:1100px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:center;padding:8px 0 20px;gap:12px;flex-wrap:wrap}
+.header h1{font-size:24px;letter-spacing:-.02em}
+.header-right{display:flex;gap:12px;align-items:center}
+a.btn-link{color:var(--primary);text-decoration:none;font-weight:600;font-size:14px}
+
+.main-nav{display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--border);flex-wrap:wrap}
+.nav-tab{padding:10px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-2px}
+.nav-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+.card h2{margin:0 0 16px;font-size:18px}
+
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;text-align:center}
+.stat-value{font-size:32px;font-weight:800;color:var(--primary)}
+.stat-label{font-size:14px;color:var(--muted);margin-top:4px}
+
+/* Tables */
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 12px;border-bottom:2px solid var(--border);font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
+.badge{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;white-space:nowrap;display:inline-block}
+.badge-active{background:#d1fae5;color:#065f46}.badge-inactive{background:#fee2e2;color:#991b1b}
+.badge-founder{background:#eef2ff;color:#4f46e5}.badge-admin{background:#dbeafe;color:#1e40af}.badge-user{background:#e5e7eb;color:#374151}
+.badge-free{background:#f3f4f6;color:#6b7280}.badge-pro{background:#d1fae5;color:#065f46}.badge-business{background:#fef3c7;color:#92400e}
+
+.btn{padding:6px 14px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;border:none;transition:transform .15s}
+.btn:hover{transform:translateY(-1px)}
+.btn-sm{padding:6px 12px;font-size:12px}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--primary);color:var(--primary)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:15px;outline:none}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--primary)}
+textarea{resize:vertical;min-height:80px}
+.user-actions{display:flex;gap:6px;flex-wrap:wrap}
+[hidden]{display:none!important}
+.error{color:var(--danger);font-size:14px}
+.ann-item{padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:12px}
+.ann-item h3{font-size:15px;margin-bottom:4px}.ann-item p{font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🤖 OmniMod Admin</h1>
+    <div class="header-right">
+      <a href="/dashboard" class="btn-link">← Dashboard</a>
+      <a class="btn-link" href="#" onclick="logout()">Log out</a>
+    </div>
+  </div>
+
+  <div class="main-nav">
+    <button class="nav-tab active" onclick="showAdminView('stats',this)">Overview</button>
+    <button class="nav-tab" onclick="showAdminView('users',this)">Users</button>
+    <button class="nav-tab" onclick="showAdminView('announcements',this)">Announcements</button>
+  </div>
+
+  <!-- Overview -->
+  <div id="admin-stats">
+    <div class="stats-grid" id="stats-grid"><div class="stat-card"><div class="stat-value">...</div><div class="stat-label">Loading</div></div></div>
+  </div>
+
+  <!-- Users -->
+  <div id="admin-users" hidden>
+    <div class="card">
+      <h2>All Users</h2>
+      <table>
+        <thead><tr><th>Email</th><th>Name</th><th>Plan</th><th>Role</th><th>Bots</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Announcements -->
+  <div id="admin-announcements" hidden>
+    <div class="card">
+      <h2>Create Announcement</h2>
+      <div id="ann-error" class="error" hidden></div>
+      <div class="form-group"><label>Title</label><input type="text" id="ann-title" placeholder="e.g. New Feature Available"></div>
+      <div class="form-group"><label>Type</label><select id="ann-type"><option value="announcement">Announcement</option><option value="update">Update</option><option value="maintenance">Maintenance</option></select></div>
+      <div class="form-group"><label>Message</label><textarea id="ann-message" placeholder="Type your announcement message..."></textarea></div>
+      <button class="btn btn-primary" onclick="createAnnouncement()">Create Announcement</button>
+    </div>
+    <div class="card">
+      <h2>Existing Announcements</h2>
+      <div id="ann-list"><div style="color:var(--muted)">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function checkAdmin(){
+  try{
+    const res=await fetch('/api/auth/me');if(!res.ok){window.location.href='/login';return;}
+    const data=await res.json();
+    if(data.user.role!=='admin'&&data.user.role!=='founder'){window.location.href='/dashboard';return;}
+    loadStats();loadUsers();loadAnnouncements();
+  }catch{window.location.href='/login';}
+}
+
+function showAdminView(view,el){
+  document.querySelectorAll('[id^="admin-"]').forEach(v=>v.hidden=true);
+  document.getElementById('admin-'+view).hidden=false;
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(view==='stats') loadStats();
+  if(view==='users') loadUsers();
+  if(view==='announcements') loadAnnouncements();
+}
+
+// --- Stats ---
+async function loadStats(){
+  try{
+    const res=await fetch('/api/admin/stats');const data=await res.json();
+    const cards=[
+      ['Total Users',data.totalUsers],[ 'Active Users',data.activeUsers],['Paid Users',data.paidUsers],
+      ['Total Bots',data.totalBots],['Active Bots',data.activeBots],['WhatsApp Bots',data.waBots],['Telegram Bots',data.tgBots],
+    ];
+    document.getElementById('stats-grid').innerHTML=cards.map(([label,val])=>`<div class="stat-card"><div class="stat-value">${val}</div><div class="stat-label">${label}</div></div>`).join('');
+    // Plan breakdown
+    if(data.planBreakdown&&data.planBreakdown.length){
+      const bd=data.planBreakdown.map(p=>`${p.plan}: ${p.count}`).join(' • ');
+      document.getElementById('stats-grid').innerHTML+=`<div class="stat-card" style="grid-column:1/-1"><div class="stat-label">Plan Breakdown</div><div style="font-size:16px;margin-top:8px">${bd}</div></div>`;
+    }
+  }catch{}
+}
+
+// --- Users ---
+async function loadUsers(){
+  try{
+    const res=await fetch('/api/admin/users');const users=await res.json();
+    document.getElementById('users-tbody').innerHTML=users.map(u=>`<tr>
+      <td>${u.email}</td><td>${u.name||'-'}</td>
+      <td><span class="badge badge-${u.plan}">${u.plan}</span></td>
+      <td><span class="badge badge-${u.role}">${u.role}</span></td>
+      <td>${u.bot_count||0}</td>
+      <td><span class="badge ${u.is_active?'badge-active':'badge-inactive'}">${u.is_active?'Active':'Inactive'}</span></td>
+      <td style="font-size:12px;color:var(--muted)">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td class="user-actions">
+        ${u.is_active?`<button class="btn btn-outline btn-sm" onclick="toggleUser(${u.id},false)">Deactivate</button>`:`<button class="btn btn-success btn-sm" onclick="toggleUser(${u.id},true)">Activate</button>`}
+        ${u.role==='user'?`<button class="btn btn-outline btn-sm" onclick="setRole(${u.id},'admin')">Make Admin</button>`:`<button class="btn btn-outline btn-sm" onclick="setRole(${u.id},'user')" ${u.role==='founder'?'disabled title="Cannot demote founder"':''}>Demote</button>`}
+        <select class="btn btn-outline btn-sm" onchange="setPlan(${u.id},this.value)" style="padding:4px 8px"><option value="">Plan...</option><option value="free">Free</option><option value="pro">Pro</option><option value="business">Business</option></select>
+        <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.email}')" ${u.role==='founder'?'disabled':''}>Delete</button>
+      </td>
+    </tr>`).join('');
+  }catch{}
+}
+async function toggleUser(id,active){await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:active})});loadUsers();loadStats();}
+async function setRole(id,role){await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});loadUsers();}
+async function setPlan(id,plan){if(!plan)return;await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});loadUsers();loadStats();}
+async function deleteUser(id,email){if(!confirm(`Delete user ${email}? This will also delete all their bots. This cannot be undone.`))return;const res=await fetch(`/api/admin/users/${id}`,{method:'DELETE'});const d=await res.json();if(d.error)alert(d.error);else{loadUsers();loadStats();}}
+
+// --- Announcements ---
+async function loadAnnouncements(){
+  try{
+    const res=await fetch('/api/admin/announcements');const items=await res.json();
+    if(!items.length){document.getElementById('ann-list').innerHTML='<div style="color:var(--muted)">No announcements yet.</div>';return;}
+    document.getElementById('ann-list').innerHTML=items.map(a=>`<div class="ann-item">
+      <h3>${a.title} <span class="badge badge-${a.type==='update'?'pro':'user'}">${a.type}</span></h3>
+      <p>${a.message}</p>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">By ${a.author_email} • ${new Date(a.created_at).toLocaleString()}</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="broadcastAnnouncement(${a.id})">Broadcast to All Bots</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteAnnouncement(${a.id})">Delete</button>
+      </div>
+    </div>`).join('');
+  }catch{}
+}
+async function createAnnouncement(){
+  const title=document.getElementById('ann-title').value.trim();
+  const message=document.getElementById('ann-message').value.trim();
+  const type=document.getElementById('ann-type').value;
+  if(!title||!message){const e=document.getElementById('ann-error');e.textContent='Title and message are required';e.hidden=false;return;}
+  document.getElementById('ann-error').hidden=true;
+  const res=await fetch('/api/admin/announcements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,message,type})});
+  if(res.ok){document.getElementById('ann-title').value='';document.getElementById('ann-message').value='';loadAnnouncements();}
+}
+async function deleteAnnouncement(id){if(!confirm('Delete this announcement?'))return;await fetch(`/api/admin/announcements/${id}`,{method:'DELETE'});loadAnnouncements();}
+async function broadcastAnnouncement(id){if(!confirm('Broadcast this announcement to all connected bot groups?'))return;const res=await fetch(`/api/admin/announcements/${id}/broadcast`,{method:'POST'});const d=await res.json();if(d.error)alert(d.error);else alert(`Broadcast sent to ${d.sent} group(s)!`);}
+
+async function logout(){event.preventDefault();await fetch('/api/auth/logout',{method:'POST'});window.location.href='/';}
+checkAdmin();
+</script>
+</body>
+</html>

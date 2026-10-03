@@ -3,42 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ExcelMind-Bot — Dashboard</title>
+<title>OmniMod — Dashboard</title>
 <style>
-:root{--primary:#14754e;--bg:#f0f5f3;--card:#fff;--text:#18372c;--muted:#52695e;--border:#dce8e1;--accent:#0d9668;--danger:#dc2626;--radius:16px}
+:root{--primary:#6366f1;--primary-dark:#4f46e5;--bg:#f8fafc;--card:#fff;--text:#1e293b;--muted:#64748b;--border:#e2e8f0;--accent:#818cf8;--danger:#dc2626;--radius:16px;--wa:#25d366;--tg:#229ed9}
 *{box-sizing:border-box;margin:0;padding:0}
 body{min-height:100vh;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,sans-serif;padding:20px}
 .container{max-width:960px;margin:0 auto}
 .header{display:flex;justify-content:space-between;align-items:center;padding:8px 0 20px;gap:12px;flex-wrap:wrap}
 .header h1{font-size:24px;letter-spacing:-.02em}
-.header-right{display:flex;gap:12px;align-items:center}
+.header-right{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .user-badge{font-size:14px;color:var(--muted);background:var(--card);border:1px solid var(--border);padding:6px 14px;border-radius:20px}
 a.btn-link{color:var(--primary);text-decoration:none;font-weight:600;font-size:14px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
 .card h2{margin:0 0 16px;font-size:18px}
-
-/* Status badges */
 .badge{padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;display:inline-block}
-.s-connected{background:#d1fae5;color:#065f46}
-.s-connecting,.s-scan,.s-reconnecting{background:#fef3c7;color:#92400e}
-.s-error,.s-logged_out,.s-stopped{background:#fee2e2;color:#991b1b}
-.s-waiting{background:#e5e7eb;color:#374151}
-
-/* Bot grid */
+.s-connected{background:#d1fae5;color:#065f46}.s-connecting,.s-scan,.s-reconnecting{background:#fef3c7;color:#92400e}.s-error,.s-logged_out,.s-stopped{background:#fee2e2;color:#991b1b}.s-waiting{background:#e5e7eb;color:#374151}
 .bot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
 .bot-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;cursor:pointer;transition:box-shadow .2s,transform .1s}
 .bot-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.08);transform:translateY(-2px)}
 .bot-card-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:8px}
 .bot-number{font-size:17px;font-weight:700}
-.bot-role{display:inline-block;padding:3px 10px;border-radius:6px;background:#e6f4ea;color:var(--primary);font-size:13px;font-weight:600;margin-bottom:8px}
+.bot-role{display:inline-block;padding:3px 10px;border-radius:6px;background:#eef2ff;color:var(--primary);font-size:13px;font-weight:600;margin-bottom:8px}
+.bot-platform{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;color:#fff;margin-left:6px}
+.platform-whatsapp{background:var(--wa)}.platform-telegram{background:var(--tg)}
 .bot-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
-
-/* QR */
 .qr-area{min-height:280px;display:grid;place-items:center;border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center}
-#qr-img{width:min(100%,320px);height:auto;display:block}
-.qr-placeholder{padding:20px;color:var(--muted)}
-
-/* Forms */
+#qr-img{width:min(100%,320px);height:auto;display:block}.qr-placeholder{padding:20px;color:var(--muted)}
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:14px;font-weight:600;margin-bottom:4px}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:15px;outline:none;transition:border-color .15s}
@@ -52,163 +42,216 @@ textarea{resize:vertical;min-height:80px}
 .btn-sm{padding:6px 14px;font-size:13px}
 [hidden]{display:none!important}
 .error{color:var(--danger);font-size:14px;margin:8px 0}
-
-/* Modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 .modal{background:var(--card);border-radius:var(--radius);padding:32px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto}
-
-/* Capabilities */
 .cap-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .cap-item{display:flex;align-items:center;gap:8px;font-size:14px}
 .cap-item input{width:auto}
-
-/* Tabs in bot detail */
-.detail-tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0}
+.cap-locked{color:var(--muted);font-size:12px;font-style:italic;margin-left:4px}
+.cap-locked input{opacity:.5}
+.detail-tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--border);padding-bottom:0;flex-wrap:wrap}
 .detail-tab{padding:8px 16px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-2px}
 .detail-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
-
-/* Activity log */
 .log-list{max-height:300px;overflow-y:auto}
 .log-entry{padding:8px 0;border-bottom:1px solid var(--border);font-size:14px}
 .log-time{color:var(--muted);font-size:12px}
-
-/* Groups */
 .group-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
-.group-name{font-weight:600}
-.group-meta{font-size:13px;color:var(--muted)}
+.group-name{font-weight:600}.group-meta{font-size:13px;color:var(--muted)}
 .admin-badge{background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600}
 
-/* Settings toggles */
-.toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+/* Main nav */
+.main-nav{display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0;flex-wrap:wrap}
+.nav-tab{padding:10px 20px;cursor:pointer;font-weight:700;font-size:15px;color:var(--muted);border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-2px}
+.nav-tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* Premium */
+.plan-card{display:flex;justify-content:space-between;align-items:center;padding:20px;border-radius:var(--radius);border:2px solid var(--border);margin-bottom:12px}
+.plan-card.current{border-color:var(--primary);background:#eef2ff}
+.plan-name{font-size:20px;font-weight:800}.plan-price{font-size:24px;font-weight:800;color:var(--primary)}
+.plan-features-list{color:var(--muted);font-size:14px;margin-top:8px}
+
+/* Profile */
+.profile-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.profile-label{font-weight:600}.profile-value{color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="container">
   <div class="header">
-    <h1>🤖 My Bots</h1>
+    <h1>🤖 OmniMod</h1>
     <div class="header-right">
       <span class="user-badge" id="user-email"></span>
-      <button class="btn btn-primary btn-sm" onclick="showCreateModal()">+ New Bot</button>
-      <a class="btn-link" href="/" onclick="logout()">Log out</a>
+      <a class="btn-link" href="#" onclick="logout()">Log out</a>
     </div>
   </div>
 
-  <!-- Bot list view -->
-  <div id="bot-list-view">
-    <div class="bot-grid" id="bot-grid">
-      <div class="qr-placeholder">Loading your bots...</div>
-    </div>
+  <!-- Main Navigation -->
+  <div class="main-nav">
+    <button class="nav-tab active" onclick="showView('bots',this)">My Bots</button>
+    <button class="nav-tab" onclick="showView('profile',this)">Profile</button>
+    <button class="nav-tab" onclick="showView('premium',this)">Premium</button>
+    <button class="nav-tab" id="admin-tab" hidden onclick="showView('admin',this)">Admin</button>
   </div>
 
-  <!-- Bot detail view -->
-  <div id="bot-detail-view" hidden>
+  <!-- ===== BOTS VIEW ===== -->
+  <div id="view-bots">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <button class="btn btn-outline btn-sm" onclick="showBotList()">← Back to bots</button>
-      <div id="detail-status"></div>
+      <h2 style="font-size:18px">Your Bots</h2>
+      <button class="btn btn-primary btn-sm" onclick="showCreateModal()">+ New Bot</button>
     </div>
-
-    <div class="detail-tabs">
-      <button class="detail-tab active" onclick="switchTab('qr')">QR & Status</button>
-      <button class="detail-tab" onclick="switchTab('groups')">Groups</button>
-      <button class="detail-tab" onclick="switchTab('capabilities')">Capabilities</button>
-      <button class="detail-tab" onclick="switchTab('settings')">Settings</button>
-      <button class="detail-tab" onclick="switchTab('schedules')">Schedules</button>
-      <button class="detail-tab" onclick="switchTab('quiz')">Quiz & Greeting</button>
-      <button class="detail-tab" onclick="switchTab('activity')">Activity</button>
+    <div id="bot-list-view">
+      <div class="bot-grid" id="bot-grid"><div class="qr-placeholder">Loading your bots...</div></div>
     </div>
+    <div id="bot-detail-view" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <button class="btn btn-outline btn-sm" onclick="showBotList()">← Back to bots</button>
+        <div id="detail-status"></div>
+      </div>
+      <div class="detail-tabs">
+        <button class="detail-tab active" onclick="switchTab('connect',this)">Connection</button>
+        <button class="detail-tab" onclick="switchTab('groups',this)">Groups</button>
+        <button class="detail-tab" onclick="switchTab('capabilities',this)">Capabilities</button>
+        <button class="detail-tab" onclick="switchTab('settings',this)">Settings</button>
+        <button class="detail-tab" onclick="switchTab('schedules',this)">Schedules</button>
+        <button class="detail-tab" onclick="switchTab('quiz',this)">Quiz & Greeting</button>
+        <button class="detail-tab" onclick="switchTab('activity',this)">Activity</button>
+      </div>
 
-    <!-- QR Tab -->
-    <div id="tab-qr" class="tab-content">
-      <div class="card">
-        <h2>Link WhatsApp</h2>
-        <div class="qr-area" id="qr-area">
-          <div class="qr-placeholder">Waiting for QR code...</div>
+      <!-- Connection tab (QR for WhatsApp, token for Telegram) -->
+      <div id="tab-connect" class="tab-content">
+        <div class="card">
+          <h2 id="connect-title">Link WhatsApp</h2>
+          <div id="wa-connect">
+            <div class="qr-area" id="qr-area"><div class="qr-placeholder">Waiting for QR code...</div></div>
+            <ol style="margin:12px 0 0;padding-left:24px;color:var(--muted);font-size:14px">
+              <li>Open WhatsApp on your phone</li>
+              <li>Go to Settings → Linked Devices</li>
+              <li>Tap "Link a Device" and scan the QR code above</li>
+            </ol>
+          </div>
+          <div id="tg-connect" hidden>
+            <div style="padding:20px;text-align:center;color:var(--muted)">
+              <p>Connect your Telegram bot using a token from <strong>@BotFather</strong>.</p>
+              <p style="font-size:13px;margin-top:8px">Make sure to disable privacy mode: send <code>/setprivacy</code> → Disable in @BotFather.</p>
+            </div>
+          </div>
+          <div class="bot-actions" style="margin-top:16px">
+            <button class="btn btn-primary btn-sm" onclick="refreshBot()" id="refresh-btn">Refresh</button>
+            <button class="btn btn-outline btn-sm" onclick="activateBot()" id="activate-btn" hidden>Activate</button>
+            <button class="btn btn-outline btn-sm" onclick="deactivateBot()" id="deactivate-btn" hidden>Deactivate</button>
+            <button class="btn btn-danger btn-sm" onclick="logoutBot()" id="logout-btn">Logout & Re-pair</button>
+          </div>
         </div>
-        <ol style="margin:12px 0 0;padding-left:24px;color:var(--muted);font-size:14px">
-          <li>Open WhatsApp on your phone</li>
-          <li>Go to Settings → Linked Devices</li>
-          <li>Tap "Link a Device" and scan the QR code above</li>
-        </ol>
-        <div class="bot-actions" style="margin-top:16px">
-          <button class="btn btn-primary btn-sm" onclick="refreshBot()" id="refresh-btn">Refresh</button>
-          <button class="btn btn-outline btn-sm" onclick="activateBot()" id="activate-btn">Activate</button>
-          <button class="btn btn-outline btn-sm" onclick="deactivateBot()" id="deactivate-btn">Deactivate</button>
-          <button class="btn btn-danger btn-sm" onclick="logoutBot()">Logout & Re-pair</button>
+      </div>
+
+      <div id="tab-groups" class="tab-content" hidden>
+        <div class="card">
+          <h2>Groups <button class="btn btn-outline btn-sm" style="float:right" onclick="refreshGroups()">↻ Refresh</button></h2>
+          <div id="group-list"><div class="qr-placeholder">No groups loaded. Make sure the bot is connected.</div></div>
+        </div>
+      </div>
+
+      <div id="tab-capabilities" class="tab-content" hidden>
+        <div class="card">
+          <h2>Bot Capabilities</h2>
+          <div class="cap-grid" id="cap-grid"></div>
+          <div id="cap-upgrade-hint" hidden style="margin-top:12px;padding:10px;background:#eef2ff;border-radius:10px;font-size:13px;color:var(--primary-dark)">
+            🔒 Some capabilities are locked on the Free plan. <a href="#" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2]);return false">Upgrade to Pro</a> to unlock them.
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="saveCapabilities()">Save</button>
+        </div>
+      </div>
+
+      <div id="tab-settings" class="tab-content" hidden>
+        <div class="card">
+          <h2>Moderation Settings</h2>
+          <div class="form-group"><label><input type="checkbox" id="set-antiLink" style="width:auto;margin-right:8px"> Anti-link (delete links from non-admins)</label></div>
+          <div class="form-group"><label><input type="checkbox" id="set-antiAbuse" style="width:auto;margin-right:8px"> Anti-abuse (delete offensive words)</label></div>
+          <div class="form-group"><label>Abusive words (comma-separated)</label><textarea id="set-abusiveWords" placeholder="fuck, shit, bastard..."></textarea></div>
+          <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
+        </div>
+        <div class="card">
+          <h2>Bot Info</h2>
+          <div class="form-group"><label>Display Name</label><input type="text" id="info-displayName" placeholder="e.g. Quiz Master"></div>
+          <div class="form-group"><label>Role</label><select id="info-role"><option>Moderator</option><option>Guard</option><option>Announcer</option><option>Quiz</option><option>Greeter</option></select></div>
+          <button class="btn btn-primary btn-sm" onclick="updateBotInfo()">Save</button>
+        </div>
+      </div>
+
+      <div id="tab-schedules" class="tab-content" hidden>
+        <div class="card">
+          <h2>Group Schedules</h2>
+          <div class="form-group"><label>Open Time (groups unlocked)</label><input type="time" id="sched-openTime"></div>
+          <div class="form-group"><label>Close Time (groups locked)</label><input type="time" id="sched-closeTime"></div>
+          <div class="form-group"><label>Morning Message Time</label><input type="time" id="sched-morningTime"></div>
+          <div class="form-group"><label>Morning Message</label><textarea id="sched-morningMessage" placeholder="Good morning everyone!"></textarea></div>
+          <button class="btn btn-primary btn-sm" onclick="saveSchedules()">Save Schedules</button>
+        </div>
+      </div>
+
+      <div id="tab-quiz" class="tab-content" hidden>
+        <div class="card">
+          <h2>Quiz & Greeting</h2>
+          <div class="form-group"><label>Daily Quiz Time</label><input type="time" id="quiz-time"></div>
+          <div class="form-group"><label>Welcome Message (for new members, use {name} for the member's name)</label><textarea id="quiz-welcome" placeholder="Welcome to the group!"></textarea></div>
+          <button class="btn btn-primary btn-sm" onclick="saveQuiz()">Save</button>
+          <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+          <button class="btn btn-outline btn-sm" onclick="sendQuizNow()">Send Quiz Now</button>
+        </div>
+      </div>
+
+      <div id="tab-activity" class="tab-content" hidden>
+        <div class="card">
+          <h2>Activity Log</h2>
+          <div class="log-list" id="log-list"><div class="qr-placeholder">No activity yet.</div></div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Groups Tab -->
-    <div id="tab-groups" class="tab-content" hidden>
-      <div class="card">
-        <h2>Groups <button class="btn btn-outline btn-sm" style="float:right" onclick="refreshGroups()">↻ Refresh</button></h2>
-        <div id="group-list"><div class="qr-placeholder">No groups loaded. Make sure the bot is connected and is an admin in your groups.</div></div>
+  <!-- ===== PROFILE VIEW ===== -->
+  <div id="view-profile" hidden>
+    <div class="card">
+      <h2>My Profile</h2>
+      <div id="profile-display">
+        <div class="profile-row"><span class="profile-label">Name</span><span class="profile-value" id="pf-name"></span></div>
+        <div class="profile-row"><span class="profile-label">Email</span><span class="profile-value" id="pf-email"></span></div>
+        <div class="profile-row"><span class="profile-label">Plan</span><span class="profile-value" id="pf-plan"></span></div>
+        <div class="profile-row"><span class="profile-label">Role</span><span class="profile-value" id="pf-role"></span></div>
+        <div class="profile-row"><span class="profile-label">Member since</span><span class="profile-value" id="pf-created"></span></div>
+        <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="showEditProfile()">Edit Profile</button>
+      </div>
+      <div id="profile-edit" hidden>
+        <div class="form-group"><label>Name</label><input type="text" id="edit-name"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="edit-email"></div>
+        <div style="display:flex;gap:12px"><button class="btn btn-primary btn-sm" onclick="saveProfile()">Save</button><button class="btn btn-outline btn-sm" onclick="cancelEditProfile()">Cancel</button></div>
       </div>
     </div>
-
-    <!-- Capabilities Tab -->
-    <div id="tab-capabilities" class="tab-content" hidden>
-      <div class="card">
-        <h2>Bot Capabilities</h2>
-        <div class="cap-grid" id="cap-grid"></div>
-        <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="saveCapabilities()">Save</button>
-      </div>
+    <div class="card">
+      <h2>Change Password</h2>
+      <div class="form-group"><label>Current Password</label><input type="password" id="pw-current" placeholder="Current password"></div>
+      <div class="form-group"><label>New Password</label><input type="password" id="pw-new" placeholder="Min 6 characters"></div>
+      <button class="btn btn-primary btn-sm" onclick="changePassword()">Change Password</button>
     </div>
+  </div>
 
-    <!-- Settings Tab -->
-    <div id="tab-settings" class="tab-content" hidden>
-      <div class="card">
-        <h2>Moderation Settings</h2>
-        <div class="form-group">
-          <label><input type="checkbox" id="set-antiLink" style="width:auto;margin-right:8px"> Anti-link (delete links from non-admins)</label>
-        </div>
-        <div class="form-group">
-          <label><input type="checkbox" id="set-antiAbuse" style="width:auto;margin-right:8px"> Anti-abuse (delete offensive words)</label>
-        </div>
-        <div class="form-group">
-          <label>Abusive words (comma-separated)</label>
-          <textarea id="set-abusiveWords" placeholder="fuck, shit, bastard..."></textarea>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
-      </div>
-      <div class="card">
-        <h2>Bot Info</h2>
-        <div class="form-group"><label>Display Name</label><input type="text" id="info-displayName" placeholder="e.g. Quiz Master"></div>
-        <div class="form-group"><label>Role</label><select id="info-role"><option>Moderator</option><option>Guard</option><option>Announcer</option><option>Quiz</option><option>Greeter</option></select></div>
-        <button class="btn btn-primary btn-sm" onclick="updateBotInfo()">Save</button>
-      </div>
+  <!-- ===== PREMIUM VIEW ===== -->
+  <div id="view-premium" hidden>
+    <div class="card">
+      <h2>Your Subscription</h2>
+      <div id="current-plan-display" style="padding:16px;background:#eef2ff;border-radius:12px;margin-bottom:16px"></div>
     </div>
-
-    <!-- Schedules Tab -->
-    <div id="tab-schedules" class="tab-content" hidden>
-      <div class="card">
-        <h2>Group Schedules</h2>
-        <div class="form-group"><label>Open Time (groups unlocked)</label><input type="time" id="sched-openTime"></div>
-        <div class="form-group"><label>Close Time (groups locked)</label><input type="time" id="sched-closeTime"></div>
-        <div class="form-group"><label>Morning Message Time</label><input type="time" id="sched-morningTime"></div>
-        <div class="form-group"><label>Morning Message</label><textarea id="sched-morningMessage" placeholder="Good morning everyone!"></textarea></div>
-        <button class="btn btn-primary btn-sm" onclick="saveSchedules()">Save Schedules</button>
-      </div>
+    <div class="card">
+      <h2>Available Plans</h2>
+      <div id="plans-list"></div>
     </div>
+  </div>
 
-    <!-- Quiz Tab -->
-    <div id="tab-quiz" class="tab-content" hidden>
-      <div class="card">
-        <h2>Quiz & Greeting</h2>
-        <div class="form-group"><label>Daily Quiz Time</label><input type="time" id="quiz-time"></div>
-        <div class="form-group"><label>Welcome Message (for new members)</label><textarea id="quiz-welcome" placeholder="Welcome to the group!"></textarea></div>
-        <button class="btn btn-primary btn-sm" onclick="saveQuiz()">Save</button>
-        <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
-        <button class="btn btn-outline btn-sm" onclick="sendQuizNow()">Send Quiz Now</button>
-      </div>
-    </div>
-
-    <!-- Activity Tab -->
-    <div id="tab-activity" class="tab-content" hidden>
-      <div class="card">
-        <h2>Activity Log</h2>
-        <div class="log-list" id="log-list"><div class="qr-placeholder">No activity yet.</div></div>
-      </div>
+  <!-- ===== ADMIN VIEW (redirect to admin page) ===== -->
+  <div id="view-admin" hidden>
+    <div class="card" style="text-align:center;padding:40px">
+      <p style="margin-bottom:16px">Admin dashboard is available on a separate page.</p>
+      <a href="/admin" class="btn btn-primary">Go to Admin Dashboard →</a>
     </div>
   </div>
 </div>
@@ -219,8 +262,20 @@ textarea{resize:vertical;min-height:80px}
     <h2 style="margin-bottom:20px">Create New Bot</h2>
     <div id="create-error" class="error" hidden></div>
     <div class="form-group">
+      <label>Platform</label>
+      <select id="new-platform" onchange="togglePlatformFields()">
+        <option value="whatsapp">💬 WhatsApp</option>
+        <option value="telegram">✈️ Telegram</option>
+      </select>
+    </div>
+    <div class="form-group" id="wa-phone-field">
       <label>Phone Number (with country code, no +)</label>
       <input type="text" id="new-phone" placeholder="2349114112326">
+    </div>
+    <div class="form-group" id="tg-token-field" hidden>
+      <label>Telegram Bot Token</label>
+      <input type="text" id="new-token" placeholder="123456789:ABCdef...">
+      <small style="color:var(--muted)">Get this from @BotFather in Telegram</small>
     </div>
     <div class="form-group">
       <label>Display Name (optional)</label>
@@ -244,322 +299,291 @@ textarea{resize:vertical;min-height:80px}
 </div>
 
 <script>
-let currentBotId = null;
-let pollTimer = null;
-let bots = [];
+let currentBotId=null, pollTimer=null, bots=[], currentUser=null, userPlan='free';
+const ALL_CAPS=[['moderation','Moderation (anti-abuse)'],['antiLink','Anti-Link'],['announcements','Announcements & Schedules'],['quiz','Quiz System'],['greeter','Greeter (welcome new members)']];
+const FREE_CAPS=['antiLink'];
 
-// --- Auth check ---
-async function checkAuth() {
-  try {
-    const res = await fetch('/api/auth/me');
-    if (!res.ok) { window.location.href = '/login'; return; }
-    const data = await res.json();
-    document.getElementById('user-email').textContent = data.user.email;
-    loadBots();
-  } catch { window.location.href = '/login'; }
+// --- Auth ---
+async function checkAuth(){
+  try{
+    const res=await fetch('/api/auth/me'); if(!res.ok){window.location.href='/login';return;}
+    const data=await res.json(); currentUser=data.user;
+    document.getElementById('user-email').textContent=data.user.email;
+    userPlan=data.user.plan||'free';
+    if(data.user.role==='admin'||data.user.role==='founder') document.getElementById('admin-tab').hidden=false;
+    loadBots(); loadProfile(); loadPlans();
+  }catch{window.location.href='/login';}
+}
+
+// --- View switching ---
+function showView(view,el){
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  document.querySelectorAll('[id^="view-"]').forEach(v=>v.hidden=true);
+  document.getElementById('view-'+view).hidden=false;
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(view==='bots'){document.getElementById('bot-detail-view').hidden=true;document.getElementById('bot-list-view').hidden=false;loadBots();}
+  if(view==='profile') loadProfile();
+  if(view==='premium') loadPlans();
 }
 
 // --- Bot list ---
-async function loadBots() {
-  try {
-    const res = await fetch('/api/bots');
-    bots = await res.json();
-    renderBotGrid();
-  } catch (e) {
-    document.getElementById('bot-grid').innerHTML = '<div class="qr-placeholder">Failed to load bots.</div>';
-  }
+async function loadBots(){
+  try{const res=await fetch('/api/bots');bots=await res.json();renderBotGrid();}
+  catch{document.getElementById('bot-grid').innerHTML='<div class="qr-placeholder">Failed to load bots.</div>';}
 }
-
-function renderBotGrid() {
-  const grid = document.getElementById('bot-grid');
-  if (!bots.length) {
-    grid.innerHTML = '<div class="card" style="text-align:center;padding:40px"><p style="color:var(--muted);margin-bottom:16px">You have no bots yet.</p><button class="btn btn-primary" onclick="showCreateModal()">+ Create your first bot</button></div>';
-    return;
-  }
-  grid.innerHTML = bots.map(b => {
-    const conn = b.connection || 'stopped';
-    const label = {connected:'Connected',connecting:'Connecting',scan:'Scan QR',reconnecting:'Reconnecting',logged_out:'Logged out',stopped:'Stopped',waiting:'Waiting',error:'Error'}[conn] || conn;
+function renderBotGrid(){
+  const grid=document.getElementById('bot-grid');
+  if(!bots.length){grid.innerHTML='<div class="card" style="text-align:center;padding:40px;grid-column:1/-1"><p style="color:var(--muted);margin-bottom:16px">You have no bots yet.</p><button class="btn btn-primary" onclick="showCreateModal()">+ Create your first bot</button></div>';return;}
+  grid.innerHTML=bots.map(b=>{
+    const conn=b.connection||'stopped';
+    const plat=b.platform||'whatsapp';
+    const label={connected:'Connected',connecting:'Connecting',scan:'Scan QR',reconnecting:'Reconnecting',logged_out:'Logged out',stopped:'Stopped',waiting:'Waiting',error:'Error'}[conn]||conn;
+    const platLabel=plat==='telegram'?'TG':'WA';
     return `<div class="bot-card" onclick="openBot('${b.id}')">
-      <div class="bot-card-header">
-        <div>
-          <div class="bot-number">${b.displayName || b.phoneNumber || 'Unnamed Bot'}</div>
-          <span class="bot-role">${b.role}</span>
-        </div>
-        <span class="badge s-${conn}">${label}</span>
-      </div>
-      ${b.phoneNumber ? `<div style="font-size:13px;color:var(--muted)">+${b.phoneNumber}</div>` : ''}
-      ${b.botNumber ? `<div style="font-size:13px;color:var(--accent)">Connected: +${b.botNumber.split('@')[0].split(':')[0]}</div>` : ''}
+      <div class="bot-card-header"><div>
+        <div class="bot-number">${b.displayName||b.phoneNumber||b.telegramToken?'@'+(b.displayName||'Bot'):'Unnamed Bot'}</div>
+        <span class="bot-role">${b.role}<span class="bot-platform platform-${plat}">${platLabel}</span></span>
+      </div><span class="badge s-${conn}">${label}</span></div>
+      ${b.phoneNumber?`<div style="font-size:13px;color:var(--muted)">+${b.phoneNumber}</div>`:''}
+      ${b.botNumber&&plat==='whatsapp'?`<div style="font-size:13px;color:var(--accent)">Connected: +${b.botNumber.split('@')[0].split(':')[0]}</div>`:''}
+      ${b.botNumber&&plat==='telegram'?`<div style="font-size:13px;color:var(--accent)">Connected: @${b.botNumber}</div>`:''}
     </div>`;
   }).join('');
 }
 
 // --- Bot detail ---
-async function openBot(botId) {
-  currentBotId = botId;
-  document.getElementById('bot-list-view').hidden = true;
-  document.getElementById('bot-detail-view').hidden = false;
-  switchTab('qr');
-  await refreshBot();
-  startPolling();
+async function openBot(botId){
+  currentBotId=botId;
+  document.getElementById('bot-list-view').hidden=true;
+  document.getElementById('bot-detail-view').hidden=false;
+  switchTab('connect',document.querySelector('.detail-tab'));
+  await refreshBot(); startPolling();
 }
-
-function showBotList() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  currentBotId = null;
-  document.getElementById('bot-detail-view').hidden = true;
-  document.getElementById('bot-list-view').hidden = false;
+function showBotList(){
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  currentBotId=null;
+  document.getElementById('bot-detail-view').hidden=true;
+  document.getElementById('bot-list-view').hidden=false;
   loadBots();
 }
-
-function switchTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(el => el.hidden = true);
-  document.getElementById('tab-' + tab).hidden = false;
-  document.querySelectorAll('.detail-tab').forEach(el => el.classList.remove('active'));
-  event.target.classList.add('active');
-  if (tab === 'groups') loadGroups();
-  if (tab === 'capabilities') loadCapabilities();
-  if (tab === 'settings') loadSettings();
-  if (tab === 'schedules') loadSchedules();
-  if (tab === 'quiz') loadQuiz();
-  if (tab === 'activity') loadLogs();
+function switchTab(tab,el){
+  document.querySelectorAll('.tab-content').forEach(e=>e.hidden=true);
+  document.getElementById('tab-'+tab).hidden=false;
+  document.querySelectorAll('.detail-tab').forEach(e=>e.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(tab==='groups') loadGroups();
+  if(tab==='capabilities') loadCapabilities();
+  if(tab==='settings') loadSettings();
+  if(tab==='schedules') loadSchedules();
+  if(tab==='quiz') loadQuiz();
+  if(tab==='activity') loadLogs();
 }
+function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(refreshBot,3000);}
 
-function startPolling() {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(refreshBot, 3000);
+async function refreshBot(){
+  if(!currentBotId)return;
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/status`);if(!res.ok)return;
+    const data=await res.json();updateStatusUI(data);
+  }catch{}
 }
+function updateStatusUI(data){
+  const conn=data.connection;
+  const label={connected:'✅ Connected',connecting:'🔄 Connecting...',scan:'📱 Scan QR',reconnecting:'🔄 Reconnecting...',logged_out:'🚪 Logged out',stopped:'⏸️ Stopped',waiting:'⏳ Waiting',error:'❌ Error'}[conn]||conn;
+  document.getElementById('detail-status').innerHTML=`<span class="badge s-${conn}">${label}</span>`;
+  const isTelegram=data.platform==='telegram';
+  document.getElementById('wa-connect').hidden=isTelegram;
+  document.getElementById('tg-connect').hidden=!isTelegram;
+  document.getElementById('connect-title').textContent=isTelegram?'Telegram Connection':'Link WhatsApp';
+  document.getElementById('logout-btn').textContent=isTelegram?'Disconnect':'Logout & Re-pair';
+  document.getElementById('refresh-btn').hidden=isTelegram;
 
-async function refreshBot() {
-  if (!currentBotId) return;
-  try {
-    const res = await fetch(`/api/bots/${currentBotId}/status`);
-    if (!res.ok) return;
-    const data = await res.json();
-    updateStatusUI(data);
-  } catch {}
-}
-
-function updateStatusUI(data) {
-  const conn = data.connection;
-  const label = {connected:'✅ Connected',connecting:'🔄 Connecting...',scan:'📱 Scan QR',reconnecting:'🔄 Reconnecting...',logged_out:'🚪 Logged out',stopped:'⏸️ Stopped',waiting:'⏳ Waiting',error:'❌ Error'}[conn] || conn;
-  document.getElementById('detail-status').innerHTML = `<span class="badge s-${conn}">${label}</span>`;
-
-  const qrArea = document.getElementById('qr-area');
-  if (data.qr) {
-    qrArea.innerHTML = `<img id="qr-img" src="${data.qr}" alt="QR Code">`;
-  } else if (conn === 'connected') {
-    qrArea.innerHTML = `<div class="qr-placeholder">✅ Bot is connected as +${(data.botNumber||'').split('@')[0].split(':')[0]}<br>No QR needed.</div>`;
-  } else if (conn === 'stopped') {
-    qrArea.innerHTML = `<div class="qr-placeholder">⏸️ Bot is deactivated. Click Activate to start.</div>`;
+  if(!isTelegram){
+    const qrArea=document.getElementById('qr-area');
+    if(data.qr)qrArea.innerHTML=`<img id="qr-img" src="${data.qr}" alt="QR Code">`;
+    else if(conn==='connected')qrArea.innerHTML=`<div class="qr-placeholder">✅ Bot is connected as +${(data.botNumber||'').split('@')[0].split(':')[0]}<br>No QR needed.</div>`;
+    else if(conn==='stopped')qrArea.innerHTML=`<div class="qr-placeholder">⏸️ Bot is deactivated. Click Activate to start.</div>`;
+    else qrArea.innerHTML=`<div class="qr-placeholder">Waiting for QR code...</div>`;
   } else {
-    qrArea.innerHTML = `<div class="qr-placeholder">Waiting for QR code... The bot will generate one shortly.</div>`;
+    const tgConnect=document.getElementById('tg-connect');
+    if(conn==='connected')tgConnect.innerHTML=`<div style="padding:20px;text-align:center"><p>✅ Connected as <strong>@${data.botNumber||'bot'}</strong></p><p style="font-size:13px;color:var(--muted);margin-top:8px">Your Telegram bot is active and monitoring groups.</p></div>`;
+    else if(conn==='stopped')tgConnect.innerHTML=`<div style="padding:20px;text-align:center;color:var(--muted)"><p>⏸️ Bot is deactivated. Click Activate to start.</p></div>`;
+    else if(conn==='error')tgConnect.innerHTML=`<div style="padding:20px;text-align:center;color:var(--danger)"><p>❌ Connection error. Check your bot token.</p></div>`;
+    else tgConnect.innerHTML=`<div style="padding:20px;text-align:center;color:var(--muted)"><p>🔄 Connecting to Telegram...</p></div>`;
   }
-
-  // Show/hide action buttons
-  document.getElementById('activate-btn').hidden = data.active;
-  document.getElementById('deactivate-btn').hidden = !data.active;
+  document.getElementById('activate-btn').hidden=data.active;
+  document.getElementById('deactivate-btn').hidden=!data.active;
 }
-
-async function activateBot() {
-  await fetch(`/api/bots/${currentBotId}/activate`, { method: 'POST' });
-  refreshBot();
-}
-async function deactivateBot() {
-  await fetch(`/api/bots/${currentBotId}/deactivate`, { method: 'POST' });
-  refreshBot();
-}
-async function logoutBot() {
-  if (!confirm('Logout and clear WhatsApp session? You will need to scan a new QR code.')) return;
-  await fetch(`/api/bots/${currentBotId}/logout`, { method: 'POST' });
-  refreshBot();
+async function activateBot(){await fetch(`/api/bots/${currentBotId}/activate`,{method:'POST'});refreshBot();}
+async function deactivateBot(){await fetch(`/api/bots/${currentBotId}/deactivate`,{method:'POST'});refreshBot();}
+async function logoutBot(){
+  if(!confirm('Logout and clear session? You will need to reconnect.'))return;
+  await fetch(`/api/bots/${currentBotId}/logout`,{method:'POST'});refreshBot();
 }
 
 // --- Groups ---
-async function loadGroups() {
-  try {
-    const res = await fetch(`/api/bots/${currentBotId}/groups`);
-    const groups = await res.json();
-    if (!groups.length) {
-      document.getElementById('group-list').innerHTML = '<div class="qr-placeholder">No groups found. Make sure the bot is connected.</div>';
-      return;
-    }
-    document.getElementById('group-list').innerHTML = groups.map(g => `
-      <div class="group-item">
-        <div>
-          <div class="group-name">${g.name}</div>
-          <div class="group-meta">${g.participants} members ${g.isAdmin ? '<span class="admin-badge">Admin</span>' : ''}</div>
-        </div>
-        ${g.isAdmin ? `<button class="btn btn-outline btn-sm" onclick="toggleLock('${g.jid}')">Lock/Unlock</button>` : ''}
-      </div>
-    `).join('');
-  } catch {}
+async function loadGroups(){
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/groups`);const groups=await res.json();
+    if(!groups.length){document.getElementById('group-list').innerHTML='<div class="qr-placeholder">No groups found. Make sure the bot is connected and added to groups as an admin.</div>';return;}
+    document.getElementById('group-list').innerHTML=groups.map(g=>`<div class="group-item"><div><div class="group-name">${g.name}</div><div class="group-meta">${g.participants} members ${g.isAdmin?'<span class="admin-badge">Admin</span>':''}</div></div>${g.isAdmin?`<button class="btn btn-outline btn-sm" onclick="toggleLock('${g.jid}')">Lock/Unlock</button>`:''}</div>`).join('');
+  }catch{}
 }
-async function refreshGroups() {
-  await fetch(`/api/bots/${currentBotId}/groups/refresh`, { method: 'POST' });
-  loadGroups();
-}
-async function toggleLock(jid) {
-  // Simple toggle — could track state but keeping simple
-  if (confirm('Lock this group (admins only)?')) {
-    await fetch(`/api/bots/${currentBotId}/lock`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({groupJid: jid}) });
-  } else {
-    await fetch(`/api/bots/${currentBotId}/unlock`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({groupJid: jid}) });
-  }
-}
+async function refreshGroups(){await fetch(`/api/bots/${currentBotId}/groups/refresh`,{method:'POST'});loadGroups();}
+async function toggleLock(jid){if(confirm('Lock this group (admins only)?'))await fetch(`/api/bots/${currentBotId}/lock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid:jid})});else await fetch(`/api/bots/${currentBotId}/unlock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid:jid})});}
 
 // --- Capabilities ---
-async function loadCapabilities() {
-  const res = await fetch(`/api/bots/${currentBotId}/status`);
-  const data = await res.json();
-  const caps = data.capabilities || {};
-  const items = [
-    ['moderation', 'Moderation (anti-abuse)'],
-    ['antiLink', 'Anti-Link'],
-    ['announcements', 'Announcements & Schedules'],
-    ['quiz', 'Quiz System'],
-    ['greeter', 'Greeter (welcome new members)'],
-  ];
-  document.getElementById('cap-grid').innerHTML = items.map(([key, label]) =>
-    `<div class="cap-item"><input type="checkbox" id="cap-${key}" ${caps[key] ? 'checked' : ''}><label for="cap-${key}">${label}</label></div>`
-  ).join('');
+async function loadCapabilities(){
+  const res=await fetch(`/api/bots/${currentBotId}/status`);const data=await res.json();
+  const caps=data.capabilities||{};
+  const isFree=userPlan==='free';
+  document.getElementById('cap-grid').innerHTML=ALL_CAPS.map(([key,label])=>{
+    const locked=isFree&&!FREE_CAPS.includes(key);
+    return `<div class="cap-item ${locked?'cap-locked':''}"><input type="checkbox" id="cap-${key}" ${caps[key]?'checked':''} ${locked?'disabled':''}><label for="cap-${key}">${label} ${locked?'🔒':''}</label></div>`;
+  }).join('');
+  document.getElementById('cap-upgrade-hint').hidden=!isFree;
 }
-async function saveCapabilities() {
-  const caps = {};
-  ['moderation','antiLink','announcements','quiz','greeter'].forEach(k => {
-    caps[k] = document.getElementById('cap-' + k).checked;
-  });
-  await fetch(`/api/bots/${currentBotId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({capabilities: caps}) });
+async function saveCapabilities(){
+  const caps={};
+  ALL_CAPS.forEach(([k])=>{const el=document.getElementById('cap-'+k);if(el)caps[k]=el.checked;});
+  await fetch(`/api/bots/${currentBotId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({capabilities:caps})});
   alert('Capabilities saved!');
 }
 
 // --- Settings ---
-async function loadSettings() {
-  const [statusRes, schedRes] = await Promise.all([
-    fetch(`/api/bots/${currentBotId}/status`),
-    fetch(`/api/bots/${currentBotId}/schedules`),
-  ]);
-  const status = await statusRes.json();
-  // settings are loaded from the bot's state settings endpoint
-  const settingsRes = await fetch(`/api/bots/${currentBotId}/settings`);
-  const settings = await settingsRes.json();
-  document.getElementById('set-antiLink').checked = settings.antiLink;
-  document.getElementById('set-antiAbuse').checked = settings.antiAbuse;
-  document.getElementById('set-abusiveWords').value = (settings.abusiveWords || []).join(', ');
-  document.getElementById('info-displayName').value = status.displayName || '';
-  document.getElementById('info-role').value = status.role || 'Moderator';
+async function loadSettings(){
+  const statusRes=await fetch(`/api/bots/${currentBotId}/status`);const status=await statusRes.json();
+  const settingsRes=await fetch(`/api/bots/${currentBotId}/settings`);const settings=await settingsRes.json();
+  document.getElementById('set-antiLink').checked=settings.antiLink;
+  document.getElementById('set-antiAbuse').checked=settings.antiAbuse;
+  document.getElementById('set-abusiveWords').value=(settings.abusiveWords||[]).join(', ');
+  document.getElementById('info-displayName').value=status.displayName||'';
+  document.getElementById('info-role').value=status.role||'Moderator';
 }
-async function saveSettings() {
-  const settings = {
-    antiLink: document.getElementById('set-antiLink').checked,
-    antiAbuse: document.getElementById('set-antiAbuse').checked,
-    abusiveWords: document.getElementById('set-abusiveWords').value.split(',').map(w => w.trim()).filter(Boolean),
-  };
-  await fetch(`/api/bots/${currentBotId}/settings`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(settings) });
-  alert('Settings saved!');
+async function saveSettings(){
+  const settings={antiLink:document.getElementById('set-antiLink').checked,antiAbuse:document.getElementById('set-antiAbuse').checked,abusiveWords:document.getElementById('set-abusiveWords').value.split(',').map(w=>w.trim()).filter(Boolean)};
+  await fetch(`/api/bots/${currentBotId}/settings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});alert('Settings saved!');
 }
-async function updateBotInfo() {
-  const updates = {
-    displayName: document.getElementById('info-displayName').value,
-    role: document.getElementById('info-role').value,
-  };
-  await fetch(`/api/bots/${currentBotId}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(updates) });
-  alert('Bot info saved!');
+async function updateBotInfo(){
+  await fetch(`/api/bots/${currentBotId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({displayName:document.getElementById('info-displayName').value,role:document.getElementById('info-role').value})});alert('Bot info saved!');
 }
 
 // --- Schedules ---
-async function loadSchedules() {
-  const res = await fetch(`/api/bots/${currentBotId}/schedules`);
-  const s = await res.json();
-  document.getElementById('sched-openTime').value = s.openTime || '08:00';
-  document.getElementById('sched-closeTime').value = s.closeTime || '22:00';
-  document.getElementById('sched-morningTime').value = s.morningTime || '07:30';
-  document.getElementById('sched-morningMessage').value = s.morningMessage || '';
+async function loadSchedules(){
+  const res=await fetch(`/api/bots/${currentBotId}/schedules`);const s=await res.json();
+  document.getElementById('sched-openTime').value=s.openTime||'08:00';document.getElementById('sched-closeTime').value=s.closeTime||'22:00';document.getElementById('sched-morningTime').value=s.morningTime||'07:30';document.getElementById('sched-morningMessage').value=s.morningMessage||'';
 }
-async function saveSchedules() {
-  const s = {
-    openTime: document.getElementById('sched-openTime').value,
-    closeTime: document.getElementById('sched-closeTime').value,
-    morningTime: document.getElementById('sched-morningTime').value,
-    morningMessage: document.getElementById('sched-morningMessage').value,
-  };
-  await fetch(`/api/bots/${currentBotId}/schedules`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(s) });
-  alert('Schedules saved!');
+async function saveSchedules(){
+  const s={openTime:document.getElementById('sched-openTime').value,closeTime:document.getElementById('sched-closeTime').value,morningTime:document.getElementById('sched-morningTime').value,morningMessage:document.getElementById('sched-morningMessage').value};
+  await fetch(`/api/bots/${currentBotId}/schedules`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)});alert('Schedules saved!');
 }
 
 // --- Quiz ---
-async function loadQuiz() {
-  const res = await fetch(`/api/bots/${currentBotId}/quiz`);
-  const q = await res.json();
-  document.getElementById('quiz-time').value = q.quizTime || '12:00';
-  document.getElementById('quiz-welcome').value = q.welcomeMessage || '';
+async function loadQuiz(){
+  const res=await fetch(`/api/bots/${currentBotId}/quiz`);const q=await res.json();
+  document.getElementById('quiz-time').value=q.quizTime||'12:00';document.getElementById('quiz-welcome').value=q.welcomeMessage||'';
 }
-async function saveQuiz() {
-  const q = {
-    quizTime: document.getElementById('quiz-time').value,
-    welcomeMessage: document.getElementById('quiz-welcome').value,
-  };
-  await fetch(`/api/bots/${currentBotId}/quiz`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(q) });
-  alert('Quiz settings saved!');
+async function saveQuiz(){
+  const q={quizTime:document.getElementById('quiz-time').value,welcomeMessage:document.getElementById('quiz-welcome').value};
+  await fetch(`/api/bots/${currentBotId}/quiz`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(q)});alert('Quiz settings saved!');
 }
-async function sendQuizNow() {
-  const res = await fetch(`/api/bots/${currentBotId}/quiz/send`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
-  const data = await res.json();
-  if (data.error) alert(data.error);
-  else alert(`Quiz sent to ${data.sent} group(s)!`);
+async function sendQuizNow(){
+  const res=await fetch(`/api/bots/${currentBotId}/quiz/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});const data=await res.json();
+  if(data.error)alert(data.error);else alert(`Quiz sent to ${data.sent} group(s)!`);
 }
 
 // --- Activity Log ---
-async function loadLogs() {
-  const res = await fetch(`/api/bots/${currentBotId}/logs`);
-  const logs = await res.json();
-  if (!logs.length) {
-    document.getElementById('log-list').innerHTML = '<div class="qr-placeholder">No activity yet.</div>';
-    return;
-  }
-  document.getElementById('log-list').innerHTML = logs.map(l => `
-    <div class="log-entry">
-      <div>${l.action.replace(/_/g,' ')} ${l.details ? '— ' + l.details : ''}</div>
-      ${l.group ? `<div class="group-meta">${l.group}</div>` : ''}
-      <div class="log-time">${new Date(l.timestamp).toLocaleString()}</div>
-    </div>
-  `).join('');
+async function loadLogs(){
+  const res=await fetch(`/api/bots/${currentBotId}/logs`);const logs=await res.json();
+  if(!logs.length){document.getElementById('log-list').innerHTML='<div class="qr-placeholder">No activity yet.</div>';return;}
+  document.getElementById('log-list').innerHTML=logs.map(l=>`<div class="log-entry"><div>${l.action.replace(/_/g,' ')} ${l.details?'— '+l.details:''}</div>${l.group?`<div class="group-meta">${l.group}</div>`:''}<div class="log-time">${new Date(l.timestamp).toLocaleString()}</div></div>`).join('');
 }
 
 // --- Create Bot ---
-function showCreateModal() { document.getElementById('create-modal').hidden = false; }
-function hideCreateModal() { document.getElementById('create-modal').hidden = true; document.getElementById('create-error').hidden = true; }
-async function createBot() {
-  const btn = document.getElementById('create-btn');
-  btn.disabled = true; btn.textContent = 'Creating...';
-  const body = {
-    phoneNumber: document.getElementById('new-phone').value.trim(),
-    displayName: document.getElementById('new-name').value.trim() || null,
-    role: document.getElementById('new-role').value,
-  };
-  try {
-    const res = await fetch('/api/bots', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    const data = await res.json();
-    if (!res.ok) {
-      const errEl = document.getElementById('create-error');
-      errEl.textContent = data.error; errEl.hidden = false;
-      btn.disabled = false; btn.textContent = 'Create Bot';
-      return;
-    }
-    hideCreateModal();
-    document.getElementById('new-phone').value = '';
-    document.getElementById('new-name').value = '';
-    loadBots();
-  } catch (e) {
-    btn.disabled = false; btn.textContent = 'Create Bot';
-  }
+function showCreateModal(){document.getElementById('create-modal').hidden=false;togglePlatformFields();}
+function hideCreateModal(){document.getElementById('create-modal').hidden=true;document.getElementById('create-error').hidden=true;}
+function togglePlatformFields(){
+  const plat=document.getElementById('new-platform').value;
+  document.getElementById('wa-phone-field').hidden=plat==='telegram';
+  document.getElementById('tg-token-field').hidden=plat==='whatsapp';
+}
+async function createBot(){
+  const btn=document.getElementById('create-btn');btn.disabled=true;btn.textContent='Creating...';
+  const plat=document.getElementById('new-platform').value;
+  const body={platform:plat,displayName:document.getElementById('new-name').value.trim()||null,role:document.getElementById('new-role').value};
+  if(plat==='whatsapp')body.phoneNumber=document.getElementById('new-phone').value.trim();
+  else body.telegramToken=document.getElementById('new-token').value.trim();
+  try{
+    const res=await fetch('/api/bots',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await res.json();
+    if(!res.ok){const e=document.getElementById('create-error');e.textContent=data.error;e.hidden=false;btn.disabled=false;btn.textContent='Create Bot';return;}
+    hideCreateModal();document.getElementById('new-phone').value='';document.getElementById('new-name').value='';document.getElementById('new-token').value='';loadBots();
+  }catch{btn.disabled=false;btn.textContent='Create Bot';}
+}
+
+// --- Profile ---
+async function loadProfile(){
+  try{
+    const res=await fetch('/api/profile');if(!res.ok)return;const p=await res.json();
+    document.getElementById('pf-name').textContent=p.name||'(not set)';
+    document.getElementById('pf-email').textContent=p.email;
+    document.getElementById('pf-plan').textContent=(p.plan||'free').charAt(0).toUpperCase()+(p.plan||'free').slice(1);
+    document.getElementById('pf-role').textContent=p.role||'user';
+    document.getElementById('pf-created').textContent=new Date(p.created_at).toLocaleDateString();
+  }catch{}
+}
+function showEditProfile(){
+  document.getElementById('profile-display').hidden=true;document.getElementById('profile-edit').hidden=false;
+  document.getElementById('edit-name').value=document.getElementById('pf-name').textContent==='(not set)'?'':document.getElementById('pf-name').textContent;
+  document.getElementById('edit-email').value=document.getElementById('pf-email').textContent;
+}
+function cancelEditProfile(){document.getElementById('profile-display').hidden=false;document.getElementById('profile-edit').hidden=true;}
+async function saveProfile(){
+  const body={name:document.getElementById('edit-name').value.trim(),email:document.getElementById('edit-email').value.trim()};
+  const res=await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.ok){cancelEditProfile();loadProfile();document.getElementById('user-email').textContent=body.email;}else{const d=await res.json();alert(d.error||'Failed to update');}
+}
+async function changePassword(){
+  const body={currentPassword:document.getElementById('pw-current').value,newPassword:document.getElementById('pw-new').value};
+  if(!body.newPassword||body.newPassword.length<6){alert('New password must be at least 6 characters');return;}
+  const res=await fetch('/api/profile/password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.ok){alert('Password changed!');document.getElementById('pw-current').value='';document.getElementById('pw-new').value='';}else{const d=await res.json();alert(d.error||'Failed to change password');}
+}
+
+// --- Premium ---
+async function loadPlans(){
+  try{
+    const [plansRes,statusRes]=await Promise.all([fetch('/api/billing/plans'),fetch('/api/billing/status')]);
+    const plansData=await plansRes.json();const statusData=await statusRes.json();
+    userPlan=statusData.plan||'free';
+    const planLabel=(userPlan||'free').charAt(0).toUpperCase()+(userPlan||'free').slice(1);
+    document.getElementById('current-plan-display').innerHTML=`<div style="font-size:20px;font-weight:800;margin-bottom:4px">${planLabel} Plan</div><div style="color:var(--muted);font-size:14px">${(config_plans(userPlan)||{}).features?config_plans(userPlan).features.join(' • '):''}</div>`;
+    const list=document.getElementById('plans-list');
+    list.innerHTML=plansData.plans.map(p=>{
+      const isCurrent=p.id===userPlan;
+      const price=p.maxBots==='Unlimited'?'Unlimited bots':`${p.maxBots} bot${p.maxBots!==1?'s':''}`;
+      return `<div class="plan-card ${isCurrent?'current':''}">
+        <div><div class="plan-name">${p.name}</div><div class="plan-features-list">${p.features.join(' • ')}</div></div>
+        <div style="text-align:center">${p.id==='free'?'<div class="plan-price">$0</div>':`<div class="plan-price">$${p.id==='pro'?'9':'29'}</div><div style="font-size:13px;color:var(--muted)">/ month</div>`}
+        ${isCurrent?'<div style="margin-top:8px"><span class="badge s-connected">Current Plan</span></div>':`<button class="btn ${p.id==='free'?'btn-outline':'btn-primary'} btn-sm" style="margin-top:8px" onclick="upgradePlan('${p.id}')">${p.id==='free'?'Downgrade':'Upgrade'}</button>`}
+        </div></div>`;
+    }).join('');
+  }catch{}
+}
+function config_plans(id){const plans={'free':{features:['1 bot','Anti-link','Basic dashboard']},'pro':{features:['5 bots','All features','Quiz','Greeter']},'business':{features:['Unlimited bots','All features','Priority support']}};return plans[id];}
+async function upgradePlan(planId){
+  if(planId==='free'){alert('You can downgrade to Free from your Stripe subscription dashboard.');return;}
+  try{
+    const res=await fetch('/api/billing/checkout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planId})});
+    const data=await res.json();
+    if(data.error){alert(data.error);return;}
+    if(data.url)window.location.href=data.url;
+  }catch{alert('Failed to start checkout. Make sure Stripe is configured.');}
 }
 
 // --- Logout ---
-async function logout() {
-  event.preventDefault();
-  await fetch('/api/auth/logout', { method: 'POST' });
-  window.location.href = '/';
-}
+async function logout(){event.preventDefault();await fetch('/api/auth/logout',{method:'POST'});window.location.href='/';}
 
 checkAuth();
 </script>

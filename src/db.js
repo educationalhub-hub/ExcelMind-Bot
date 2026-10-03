@@ -18,13 +18,17 @@ export async function migrate() {
         name          TEXT,
         plan          TEXT NOT NULL DEFAULT 'free',
         stripe_customer_id TEXT,
+        role          TEXT NOT NULL DEFAULT 'user',
+        is_active     BOOLEAN NOT NULL DEFAULT true,
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
       CREATE TABLE IF NOT EXISTS bots (
         id          TEXT PRIMARY KEY,
         user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        platform    TEXT NOT NULL DEFAULT 'whatsapp',
         phone_number TEXT,
+        telegram_token TEXT,
         display_name TEXT,
         role        TEXT NOT NULL DEFAULT 'Moderator',
         auth_dir     TEXT NOT NULL,
@@ -33,8 +37,34 @@ export async function migrate() {
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
+      CREATE TABLE IF NOT EXISTS announcements (
+        id          SERIAL PRIMARY KEY,
+        author_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        message     TEXT NOT NULL,
+        type        TEXT NOT NULL DEFAULT 'announcement',
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
       CREATE INDEX IF NOT EXISTS idx_bots_user_id ON bots(user_id);
     `);
+
+    // Add columns to existing tables if they don't exist (safe for already-created tables)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
+    await client.query(`ALTER TABLE bots ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'whatsapp'`);
+    await client.query(`ALTER TABLE bots ADD COLUMN IF NOT EXISTS telegram_token TEXT`);
+
+    // Make auth_dir nullable (telegram bots don't use it)
+    await client.query(`ALTER TABLE bots ALTER COLUMN auth_dir DROP NOT NULL`);
+
+    // The very first user is the founder/admin
+    const firstUser = await client.query('SELECT id FROM users ORDER BY id ASC LIMIT 1');
+    if (firstUser.rows.length && firstUser.rows[0].id) {
+      await client.query("UPDATE users SET role = 'founder' WHERE id = $1", [firstUser.rows[0].id]);
+    }
+
     console.log('✅ Database migrations complete');
   } finally {
     client.release();

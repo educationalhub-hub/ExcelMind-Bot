@@ -39,7 +39,7 @@ async function main() {
   const app = createApp(botManager);
 
   const server = app.listen(3000, '0.0.0.0', () => {
-    console.log('📊 ExcelMind-Bot SaaS platform is ready on port 3000.');
+    console.log('📊 OmniMod SaaS platform is ready on port 3000.');
   });
 
   server.on('error', (error) => {

@@ -574,7 +574,7 @@ export class BotInstance {
           const pct = s.total ? Math.round((s.correct / s.total) * 100) : 0;
           return `${i + 1}. +${name} — ${s.correct}/${s.total} (${pct}%)`;
         });
-      const summary = `🏆 *Quiz Results (${QUIZZES_BEFORE_RESULTS} rounds)*\n\n${lines.join('\n')}\n\n🎉 Well done! New quiz round starting soon. — *ExcelMind-Bot* 🤖`;
+      const summary = `🏆 *Quiz Results (${QUIZZES_BEFORE_RESULTS} rounds)*\n\n${lines.join('\n')}\n\n🎉 Well done! New quiz round starting soon. — *OmniMod* 🤖`;
       try {
         await this.sock.sendMessage(groupJid, { text: summary });
         this.addLog('quiz_results', { group: groupJid, details: `Results sent for ${QUIZZES_BEFORE_RESULTS} quizzes` });

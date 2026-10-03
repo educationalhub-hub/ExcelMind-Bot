@@ -1,7 +1,7 @@
 {
-  "name": "excelmind-bot",
-  "version": "1.0.0",
-  "description": "ExcelMind-Bot — WhatsApp bot SaaS platform for creating and managing moderation bots.",
+  "name": "omnimod",
+  "version": "2.0.0",
+  "description": "OmniMod — WhatsApp & Telegram bot SaaS platform for creating and managing moderation bots.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -20,6 +20,7 @@
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "node-telegram-bot-api": "^2.1.0",
     "pg": "^8.13.1",
     "pino": "^9.9.0",
     "qrcode": "1.5.4",
