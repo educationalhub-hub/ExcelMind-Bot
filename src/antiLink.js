@@ -12,10 +12,10 @@ export function resetLinkRegex() {
 export function isAdmin(participant, groupMetadata) {
   if (!participant || !groupMetadata) return false;
 
-  const participantJid = participant.split(':')[0];
+  const participantJid = participant.split('@')[0].split(':')[0];
 
   const member = groupMetadata.participants.find((p) => {
-    const jid = p.id?.split(':')[0];
+    const jid = (p.jid || p.id)?.split('@')[0].split(':')[0];
     return jid === participantJid;
   });
 

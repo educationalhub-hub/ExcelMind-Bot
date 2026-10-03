@@ -15,6 +15,9 @@ export const botState = {
     antiAbuse: true,
     abusiveWords: DEFAULT_ABUSIVE_WORDS,
   },
+  // Per-group moderation toggles: { [jid]: { moderation: true } }
+  // Defaults to enabled for all admin groups.
+  groupSettings: {},
 };
 
 const MAX_LOGS = 100;
@@ -55,4 +58,18 @@ export function updateSettings(newSettings) {
 
 export function setBotNumber(number) {
   botState.botNumber = number;
+}
+
+export function updateGroupSetting(jid, moderation) {
+  if (!botState.groupSettings[jid]) {
+    botState.groupSettings[jid] = { moderation: true };
+  }
+  botState.groupSettings[jid].moderation = moderation;
+}
+
+export function getGroupSetting(jid) {
+  if (!botState.groupSettings[jid]) {
+    return { moderation: true };
+  }
+  return botState.groupSettings[jid];
 }

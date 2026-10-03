@@ -120,6 +120,33 @@
       .badge-yes { background: #d1fae5; color: #065f46; }
       .badge-no { background: #f3f4f6; color: #9ca3af; }
 
+      /* Per-group toggle in table */
+      .group-toggle {
+        position: relative;
+        width: 40px;
+        height: 22px;
+        appearance: none;
+        background: #d1d5db;
+        border-radius: 11px;
+        cursor: pointer;
+        transition: background .2s;
+        flex-shrink: 0;
+      }
+      .group-toggle:checked { background: var(--accent); }
+      .group-toggle::after {
+        content: '';
+        position: absolute;
+        top: 2px; left: 2px;
+        width: 18px; height: 18px;
+        background: white;
+        border-radius: 50%;
+        transition: transform .2s;
+      }
+      .group-toggle:checked::after { transform: translateX(18px); }
+      .group-toggle:disabled { opacity: .4; cursor: not-allowed; }
+      .group-row { transition: background .15s; }
+      .group-row.off { opacity: .6; }
+
       /* Activity log */
       .log-list { max-height: 300px; overflow-y: auto; }
       .log-entry {
@@ -392,6 +419,8 @@
         }
       }
 
+      let currentGroupSettings = {};
+
       function renderGroups(groups) {
         const container = document.getElementById('groups-container');
         if (!groups.length) {
@@ -402,16 +431,53 @@
         document.getElementById('stat-groups').textContent = groups.length;
         document.getElementById('stat-admin').textContent = adminCount;
 
-        let html = '<table class="groups-table"><thead><tr><th>Group Name</th><th>Members</th><th>Bot Admin?</th></tr></thead><tbody>';
+        let html = '<table class="groups-table"><thead><tr><th>Group Name</th><th>Members</th><th>Bot Admin?</th><th>Moderation</th></tr></thead><tbody>';
         for (const g of groups) {
-          html += '<tr><td>' + escapeHtml(g.name) + '</td><td>' + g.participants + '</td><td>';
+          const moderationOn = currentGroupSettings[g.jid]?.moderation !== false;
+          const rowClass = g.isAdmin && !moderationOn ? 'group-row off' : 'group-row';
+          html += '<tr class="' + rowClass + '"><td>' + escapeHtml(g.name) + '</td><td>' + g.participants + '</td><td>';
           html += g.isAdmin
             ? '<span class="badge badge-yes">✓ Admin</span>'
             : '<span class="badge badge-no">Member</span>';
+          html += '</td><td>';
+          if (g.isAdmin) {
+            html += '<input type="checkbox" class="group-toggle" data-jid="' + g.jid + '"' + (moderationOn ? ' checked' : '') + '>';
+          } else {
+            html += '<span class="muted">—</span>';
+          }
           html += '</td></tr>';
         }
         html += '</tbody></table>';
         container.innerHTML = html;
+
+        // Wire up group toggle switches
+        container.querySelectorAll('.group-toggle').forEach((toggle) => {
+          toggle.addEventListener('change', async (e) => {
+            const jid = e.target.dataset.jid;
+            const moderation = e.target.checked;
+            e.target.disabled = true;
+            try {
+              const res = await fetch('/api/group-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jid, moderation }),
+              });
+              if (res.ok) {
+                currentGroupSettings = await res.json();
+                const row = e.target.closest('.group-row');
+                if (row) row.classList.toggle('off', !moderation);
+                showToast(moderation ? 'Moderation ON' : 'Moderation OFF');
+              } else {
+                e.target.checked = !moderation;
+                showToast('Failed to toggle', 'error');
+              }
+            } catch {
+              e.target.checked = !moderation;
+              showToast('Network error', 'error');
+            }
+            e.target.disabled = false;
+          });
+        });
 
         // Populate instruction group dropdown
         const select = document.getElementById('instruction-group');
@@ -441,6 +507,7 @@
           settings_update: '⚙️ Settings updated',
           bot_connected: '✅ Bot connected',
           groups_refreshed: '🔄 Groups refreshed',
+          group_toggled: '🔀 Group moderation toggled',
         };
         let html = '';
         for (const log of logs.slice(0, 50)) {
@@ -478,11 +545,13 @@
           setStatus(status.connection, status.qr, status.botNumber);
 
           if (status.connection === 'connected') {
-            const [groupsRes, logsRes, settingsRes] = await Promise.all([
+            const [groupsRes, logsRes, settingsRes, groupSettingsRes] = await Promise.all([
               fetch('/api/groups', { cache: 'no-store' }),
               fetch('/api/logs', { cache: 'no-store' }),
               fetch('/api/settings', { cache: 'no-store' }),
+              fetch('/api/group-settings', { cache: 'no-store' }),
             ]);
+            currentGroupSettings = await groupSettingsRes.json();
             renderGroups(await groupsRes.json());
             renderLogs(await logsRes.json());
             if (!currentSettings) renderSettings(await settingsRes.json());

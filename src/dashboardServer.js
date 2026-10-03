@@ -8,6 +8,7 @@ import {
   updateConnection,
   updateSettings,
   setBotNumber,
+  updateGroupSetting,
 } from './botState.js';
 
 async function readBody(request) {
@@ -22,9 +23,9 @@ async function readBody(request) {
 
 function isBotAdmin(groupMetadata, botJid) {
   if (!groupMetadata?.participants || !botJid) return false;
-  const botId = botJid.split(':')[0];
+  const botId = botJid.split('@')[0].split(':')[0];
   const member = groupMetadata.participants.find(
-    (p) => p.id?.split(':')[0] === botId
+    (p) => (p.jid || p.id)?.split('@')[0].split(':')[0] === botId
   );
   return member?.admin === 'admin' || member?.admin === 'superadmin';
 }
@@ -110,6 +111,31 @@ export function createDashboardServer() {
     if (method === 'GET' && path === '/api/settings') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify(botState.settings));
+      return;
+    }
+
+    // API: group settings (per-group on/off toggle)
+    if (method === 'GET' && path === '/api/group-settings') {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(botState.groupSettings));
+      return;
+    }
+
+    if (method === 'POST' && path === '/api/group-settings') {
+      const body = await readBody(request);
+      if (!body?.jid || typeof body.moderation !== 'boolean') {
+        response.writeHead(400, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ error: 'jid and moderation (boolean) are required' }));
+        return;
+      }
+      updateGroupSetting(body.jid, body.moderation);
+      const groupName = botState.groups.find((g) => g.jid === body.jid)?.name || body.jid;
+      addLog('group_toggled', {
+        group: groupName,
+        details: body.moderation ? 'Moderation enabled' : 'Moderation disabled',
+      });
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify(botState.groupSettings));
       return;
     }
 

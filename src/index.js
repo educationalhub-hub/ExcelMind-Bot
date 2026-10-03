@@ -12,6 +12,7 @@ import {
   isAdmin,
   containsAbuse,
 } from './antiLink.js';
+import { getGroupSetting } from './botState.js';
 
 const dashboard = createDashboardServer();
 dashboard.server.on('error', (error) => {
@@ -29,9 +30,9 @@ function handleStartError(error) {
 
 function isBotAdminInGroup(groupMetadata, botJid) {
   if (!groupMetadata?.participants || !botJid) return false;
-  const botId = botJid.split(':')[0];
+  const botId = botJid.split('@')[0].split(':')[0];
   const member = groupMetadata.participants.find(
-    (p) => p.id?.split(':')[0] === botId
+    (p) => (p.jid || p.id)?.split('@')[0].split(':')[0] === botId
   );
   return member?.admin === 'admin' || member?.admin === 'superadmin';
 }
@@ -127,6 +128,12 @@ async function startBot() {
 
       // Only moderate groups where the bot is an admin.
       if (!isBotAdminInGroup(groupMetadata, sock.user?.id)) {
+        return;
+      }
+
+      // Check per-group moderation toggle (default: enabled).
+      const groupSetting = getGroupSetting(remoteJid);
+      if (!groupSetting.moderation) {
         return;
       }
 
