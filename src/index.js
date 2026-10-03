@@ -1,7 +1,11 @@
 import 'dotenv/config';
 
 // Suppress harmless libsignal "Bad MAC" / "Failed to decrypt" noise from stale sessions.
-const SUPPRESS_PATTERNS = ['Bad MAC', 'Failed to decrypt message with any known session'];
+const SUPPRESS_PATTERNS = [
+  'Bad MAC',
+  'Failed to decrypt message with any known session',
+  'Closing session: SessionEntry',
+];
 const _origError = console.error;
 console.error = (...args) => {
   if (!SUPPRESS_PATTERNS.some((p) => args.map(String).join(' ').includes(p))) {

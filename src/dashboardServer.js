@@ -76,6 +76,17 @@ export function createDashboardServer(botManager) {
       return;
     }
 
+    // Aggregate status (health-check + backwards-compatible with single-bot API)
+    if (method === 'GET' && path === '/api/status') {
+      const bots = botManager.listBots();
+      const primary = bots[0] || {};
+      sendJson(response, 200, {
+        connection: primary.connection || 'waiting',
+        bots: bots.length,
+      });
+      return;
+    }
+
     if (!botId || !botManager.getBot(botId)) {
       sendJson(response, 404, { error: 'Bot not found' });
       return;
