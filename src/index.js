@@ -20,6 +20,34 @@ async function startBot() {
     auth: state,
     logger: P({ level: 'silent' }),
   });
+
+  sock.ev.on('creds.update', saveCreds);
+
+  // Wait for the WhatsApp WebSocket to connect before requesting a pairing code.
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Timed out waiting for WhatsApp connection')),
+      30000
+    );
+    sock.ev.on('connection.update', (update) => {
+      if (update.connection === 'open') {
+        clearTimeout(timeout);
+        resolve();
+      }
+      if (update.connection === 'connecting') {
+        // Give the noise handshake time to complete before requesting the pairing code.
+        setTimeout(() => {
+          clearTimeout(timeout);
+          resolve();
+        }, 5000);
+      }
+      if (update.connection === 'close') {
+        clearTimeout(timeout);
+        reject(new Error('Connection closed during handshake'));
+      }
+    });
+  });
+
 if (!state.creds.registered) {
   const phoneNumber = process.env.PHONE_NUMBER;
 
@@ -34,7 +62,6 @@ if (!state.creds.registered) {
   console.log('📱 WhatsApp Pairing Code:');
   console.log(code);
 }
-  sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
   const { connection, lastDisconnect } = update;
