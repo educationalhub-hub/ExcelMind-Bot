@@ -4,9 +4,9 @@ export const config = {
   configsPath: './auth_info/bot-configs.json',
 
   defaultBots: [
-    { id: 'bot1', number: '2349164237873', displayName: 'Bot', role: 'Moderator', authDir: './auth_info', active: true, capabilities: { moderation: true, antiLink: true, announcements: false } },
-    { id: 'bot2', number: '2347018544908', displayName: null, role: 'Guard', authDir: './auth_info/bot2', active: true, capabilities: { moderation: false, antiLink: true, announcements: false } },
-    { id: 'bot3', number: '2349114112326', displayName: null, role: 'Moderator', authDir: './auth_info/bot3', active: true, capabilities: { moderation: true, antiLink: true, announcements: true } },
+    { id: 'bot1', number: '2349164237873', displayName: 'Quiz Master', role: 'Quiz', authDir: './auth_info', active: true, capabilities: { moderation: false, antiLink: false, announcements: false, quiz: true, greeter: false } },
+    { id: 'bot2', number: '2347018544908', displayName: null, role: 'Guard', authDir: './auth_info/bot2', active: true, capabilities: { moderation: false, antiLink: true, announcements: false, quiz: false, greeter: false } },
+    { id: 'bot3', number: '2349114112326', displayName: null, role: 'Moderator', authDir: './auth_info/bot3', active: true, capabilities: { moderation: true, antiLink: true, announcements: true, quiz: true, greeter: true } },
   ],
 
   defaultRules: `📋 *GROUP RULES & REGULATIONS*

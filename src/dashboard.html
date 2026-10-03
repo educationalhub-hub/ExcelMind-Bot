@@ -140,6 +140,8 @@
                   <option>Moderator</option>
                   <option>Guard</option>
                   <option>Announcer</option>
+                  <option>Quiz</option>
+                  <option>Greeter</option>
                 </select>
               </div>
             </div>
@@ -173,6 +175,8 @@
                 <option>Moderator</option>
                 <option>Guard</option>
                 <option>Announcer</option>
+                <option>Quiz</option>
+                <option>Greeter</option>
               </select>
             </div>
             <div class="form-group">
@@ -193,9 +197,18 @@
             <input type="checkbox" class="toggle" id="cap-announcements">
             <label for="cap-announcements">📢 Announcements — schedules, morning messages, broadcasts, group lock/unlock</label>
           </div>
+          <div class="toggle-row">
+            <input type="checkbox" class="toggle" id="cap-quiz">
+            <label for="cap-quiz">📝 Quiz — auto-send quiz polls to groups, send results after 5 quizzes</label>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" class="toggle" id="cap-greeter">
+            <label for="cap-greeter">👋 Greeter — welcome new members who join groups</label>
+          </div>
           <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap;">
             <button id="save-config">Save Configuration</button>
             <button class="secondary" id="start-stop-btn">⏸ Stop Bot</button>
+            <button class="danger" id="logout-btn">🚪 Logout</button>
             <button class="danger" id="remove-bot-btn">Remove Bot</button>
           </div>
         </div>
@@ -255,6 +268,31 @@
                 <textarea id="morning-message" rows="2" placeholder="Message to send when the group opens…"></textarea>
               </div>
               <button type="submit">Save Schedule</button>
+            </form>
+          </div>
+
+          <!-- Quiz & Greeter -->
+          <div class="card">
+            <h2>Quiz & Greeter Settings</h2>
+            <form id="quiz-form">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="quiz-time">Daily Quiz Time (when quiz polls are auto-sent)</label>
+                  <input type="time" id="quiz-time">
+                </div>
+                <div class="form-group">
+                  <label for="quiz-group">Send Quiz Now To</label>
+                  <select id="quiz-group"><option value="all">All admin groups</option></select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="welcome-message">Greeter Welcome Message (sent to new members)</label>
+                <textarea id="welcome-message" rows="2" placeholder="Welcome message for new group members…"></textarea>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button type="submit" id="save-quiz-btn">Save Quiz Settings</button>
+                <button type="button" id="send-quiz-btn" class="secondary">📝 Send Quiz Now</button>
+              </div>
             </form>
           </div>
 
@@ -327,7 +365,7 @@
     <div id="toast" class="toast"></div>
 
     <script>
-      const ROLES = ['Moderator', 'Guard', 'Announcer'];
+      const ROLES = ['Moderator', 'Guard', 'Announcer', 'Quiz', 'Greeter'];
       const statusLabels = {
         waiting: 'Waiting…', connecting: 'Connecting…', scan: 'Ready to scan',
         connected: '● Connected', reconnecting: 'Reconnecting…',
@@ -350,6 +388,9 @@
         morning_message: '🌅 Morning message sent', groups_opened: '🔓 Groups opened',
         groups_closed: '🔒 Groups closed', group_locked: '🔒 Group locked',
         group_unlocked: '🔓 Group unlocked', schedules_updated: '⏰ Schedules updated',
+        quiz_sent: '📝 Quiz sent', quiz_results: '🏆 Quiz results sent',
+        quiz_settings_updated: '📝 Quiz settings updated', member_welcomed: '👋 Member welcomed',
+        bot_logout: '🚪 Bot logged out', bot_started: '▶️ Bot started', bot_stopped: '⏸️ Bot stopped',
       };
 
       let currentBotId = null;
@@ -391,7 +432,7 @@
       function renderBotCards(bots) {
         const c = document.getElementById('bot-cards');
         if (!bots.length) { c.innerHTML = '<p class="empty">No bots yet. Add one below.</p>'; return; }
-        const capLabels = { moderation: '🛡 Anti-Abuse', antiLink: '🔗 Link Delete', announcements: '📢 Announce' };
+        const capLabels = { moderation: '🛡 Anti-Abuse', antiLink: '🔗 Link Delete', announcements: '📢 Announce', quiz: '📝 Quiz', greeter: '👋 Greeter' };
         c.innerHTML = bots.map(b => {
           const cls = 's-' + b.connection;
           const label = statusLabels[b.connection] || b.connection;
@@ -472,6 +513,8 @@
         document.getElementById('cap-moderation').checked = !!caps.moderation;
         document.getElementById('cap-antiLink').checked = !!caps.antiLink;
         document.getElementById('cap-announcements').checked = !!caps.announcements;
+        document.getElementById('cap-quiz').checked = !!caps.quiz;
+        document.getElementById('cap-greeter').checked = !!caps.greeter;
 
         // Update start/stop button
         const ssBtn = document.getElementById('start-stop-btn');
@@ -612,6 +655,18 @@
         document.getElementById('rules-message').value = r.rulesMessage || '';
       }
 
+      function renderQuiz(q) {
+        document.getElementById('quiz-time').value = q.quizTime || '';
+        document.getElementById('welcome-message').value = q.welcomeMessage || '';
+        // Populate quiz group dropdown
+        const sel = document.getElementById('quiz-group');
+        const current = sel.value;
+        sel.innerHTML = '<option value="all">All admin groups</option>';
+        const groups = window._currentGroups || [];
+        for (const g of groups) if (g.isAdmin) sel.innerHTML += '<option value="' + g.jid + '">' + escapeHtml(g.name) + '</option>';
+        sel.value = current;
+      }
+
       async function pollBot() {
         try {
           const res = await api('/status', { cache: 'no-store' });
@@ -627,11 +682,14 @@
               api('/rules', { cache: 'no-store' }),
             ]);
             currentGroupSettings = await gs.json();
-            renderGroups(await g.json());
+            const groupsData = await g.json();
+            window._currentGroups = groupsData;
+            renderGroups(groupsData);
             renderLogs(await l.json());
             if (!currentSettings) renderSettings(await s.json());
             renderSchedules(await sc.json());
             renderRules(await rl.json());
+            renderQuiz(await (await api('/quiz', { cache: 'no-store' })).json());
           }
         } catch {
           document.getElementById('status-badge').textContent = 'Connection lost…';
@@ -650,6 +708,8 @@
           moderation: document.getElementById('cap-moderation').checked,
           antiLink: document.getElementById('cap-antiLink').checked,
           announcements: document.getElementById('cap-announcements').checked,
+          quiz: document.getElementById('cap-quiz').checked,
+          greeter: document.getElementById('cap-greeter').checked,
         };
         try {
           await fetch('/api/bots/' + currentBotId, {
@@ -681,6 +741,19 @@
           showToast('Bot removed');
           navigate('');
         } catch { showToast('Failed', 'error'); }
+      });
+
+      document.getElementById('logout-btn').addEventListener('click', async () => {
+        if (!confirm('Logout this bot from WhatsApp? You will need to scan a new QR code to reconnect.')) return;
+        const btn = document.getElementById('logout-btn');
+        btn.disabled = true; btn.textContent = 'Logging out…';
+        try {
+          const res = await api('/logout', { method: 'POST' });
+          if (res.ok) {
+            showToast('Logged out — scan QR to reconnect');
+          } else { showToast('Failed', 'error'); }
+        } catch { showToast('Network error', 'error'); }
+        btn.disabled = false; btn.textContent = '🚪 Logout';
       });
 
       document.getElementById('refresh-groups').addEventListener('click', async () => {
@@ -725,6 +798,37 @@
           if (res.ok) { renderSchedules(await res.json()); showToast('Schedule saved'); }
           else showToast('Failed', 'error');
         } catch { showToast('Network error', 'error'); }
+      });
+
+      document.getElementById('quiz-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const quizTime = document.getElementById('quiz-time').value;
+        const welcomeMessage = document.getElementById('welcome-message').value;
+        try {
+          const res = await api('/quiz', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quizTime, welcomeMessage }),
+          });
+          if (res.ok) { renderQuiz(await res.json()); showToast('Quiz settings saved'); }
+          else showToast('Failed', 'error');
+        } catch { showToast('Network error', 'error'); }
+      });
+
+      document.getElementById('send-quiz-btn').addEventListener('click', async () => {
+        const groupJid = document.getElementById('quiz-group').value;
+        const btn = document.getElementById('send-quiz-btn');
+        btn.disabled = true; btn.textContent = 'Sending…';
+        try {
+          const res = await api('/quiz/send', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ groupJid }),
+          });
+          if (res.ok) {
+            const r = await res.json();
+            showToast('Quiz sent to ' + r.sent + ' group(s)');
+          } else showToast('Failed', 'error');
+        } catch { showToast('Network error', 'error'); }
+        btn.disabled = false; btn.textContent = '📝 Send Quiz Now';
       });
 
       document.getElementById('save-rules-btn').addEventListener('click', async (e) => {

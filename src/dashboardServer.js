@@ -149,6 +149,16 @@ export function createDashboardServer(botManager) {
       return;
     }
 
+    if (method === 'POST' && subPath === '/logout') {
+      try {
+        await botManager.logoutBot(botId);
+        sendJson(response, 200, bot.getStatusSummary());
+      } catch (error) {
+        sendJson(response, 500, { error: error.message });
+      }
+      return;
+    }
+
     if (method === 'GET' && subPath === '/groups') {
       sendJson(response, 200, bot.state.groups);
       return;
@@ -276,6 +286,42 @@ export function createDashboardServer(botManager) {
       try {
         await bot.unlockGroup(body.groupJid);
         sendJson(response, 200, { success: true });
+      } catch (error) {
+        sendJson(response, 500, { error: error.message });
+      }
+      return;
+    }
+
+    if (method === 'GET' && subPath === '/quiz') {
+      sendJson(response, 200, bot.state.quiz);
+      return;
+    }
+    if (method === 'POST' && subPath === '/quiz') {
+      const body = await readBody(request);
+      bot.updateQuizSettings(body || {});
+      bot.addLog('quiz_settings_updated', { details: 'Quiz settings updated' });
+      sendJson(response, 200, bot.state.quiz);
+      return;
+    }
+
+    if (method === 'POST' && subPath === '/quiz/send') {
+      if (bot.state.connection !== 'connected' || !bot.sock) {
+        sendJson(response, 503, { error: 'Bot not connected' });
+        return;
+      }
+      const body = await readBody(request);
+      const groupJid = body?.groupJid || 'all';
+      try {
+        let count = 0;
+        if (groupJid === 'all') {
+          const adminGroups = bot.state.groups.filter((g) => g.isAdmin);
+          for (const g of adminGroups) { await bot.sendQuiz(g.jid); count++; }
+        } else {
+          await bot.sendQuiz(groupJid);
+          count = 1;
+        }
+        if (bot.quizState.quizzesSent >= 5) await bot.sendQuizResults();
+        sendJson(response, 200, { sent: count });
       } catch (error) {
         sendJson(response, 500, { error: error.message });
       }

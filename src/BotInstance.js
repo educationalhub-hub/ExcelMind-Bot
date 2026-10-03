@@ -11,6 +11,11 @@ import {
   containsAbuse,
 } from './antiLink.js';
 import { config } from './config.js';
+import {
+  getQuizQuestion,
+  createQuizState,
+  QUIZZES_BEFORE_RESULTS,
+} from './quizSystem.js';
 
 const DEFAULT_ABUSIVE_WORDS = [
   'fuck', 'shit', 'bitch', 'bastard', 'idiot', 'stupid',
@@ -23,12 +28,14 @@ const MAX_LOGS = 100;
 function getDefaultCapabilities(number, role) {
   // Main account (bot3) performs all functions
   if (number === '2349114112326') {
-    return { moderation: true, antiLink: true, announcements: true };
+    return { moderation: true, antiLink: true, announcements: true, quiz: true, greeter: true };
   }
   switch (role) {
-    case 'Guard': return { moderation: false, antiLink: true, announcements: false };
-    case 'Announcer': return { moderation: false, antiLink: false, announcements: true };
-    default: return { moderation: true, antiLink: true, announcements: false };
+    case 'Guard': return { moderation: false, antiLink: true, announcements: false, quiz: false, greeter: false };
+    case 'Announcer': return { moderation: false, antiLink: false, announcements: true, quiz: false, greeter: false };
+    case 'Quiz': return { moderation: false, antiLink: false, announcements: false, quiz: true, greeter: false };
+    case 'Greeter': return { moderation: false, antiLink: false, announcements: false, quiz: false, greeter: true };
+    default: return { moderation: true, antiLink: true, announcements: false, quiz: false, greeter: false };
   }
 }
 
@@ -47,6 +54,7 @@ export class BotInstance {
     this.muteTimers = new Map();
     this.scheduleTimer = null;
     this.lastScheduleRun = {};
+    this.quizState = createQuizState();
 
     this.state = {
       connection: 'waiting',
@@ -63,6 +71,10 @@ export class BotInstance {
       mutedUsers: {},
       schedules: { ...config.defaultSchedules },
       rulesMessage: config.defaultRules,
+      quiz: {
+        quizTime: this.quizState.quizTime,
+        welcomeMessage: this.quizState.welcomeMessage,
+      },
     };
   }
 
@@ -93,6 +105,25 @@ export class BotInstance {
     this.updateConnection('stopped');
     this.addLog('bot_stopped', { details: 'Bot deactivated by user' });
     console.log(`⏸️ ${this.id}: deactivated by user`);
+  }
+
+  async logout() {
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
+    for (const timer of this.muteTimers.values()) clearTimeout(timer);
+    this.muteTimers.clear();
+    if (this.sock) {
+      try {
+        await this.sock.logout();
+      } catch (e) {
+        console.error(`❌ ${this.id} logout error:`, e.message);
+      }
+      this.sock = null;
+    }
+    this.active = false;
+    this.updateConnection('logged_out');
+    this.addLog('bot_logout', { details: 'Bot logged out — scan QR to reconnect' });
+    console.log(`🚪 ${this.id}: logged out`);
   }
 
   // --- State helpers ---
@@ -160,6 +191,8 @@ export class BotInstance {
     this.sock.ev.on('creds.update', saveCreds);
     this.sock.ev.on('connection.update', (update) => this.handleConnectionUpdate(update));
     this.sock.ev.on('messages.upsert', ({ messages }) => this.handleMessages(messages));
+    this.sock.ev.on('messages.update', (updates) => this.handlePollUpdates(updates));
+    this.sock.ev.on('group-participants.update', (update) => this.handleParticipantUpdate(update));
 
     this.startScheduler();
   }
@@ -394,7 +427,6 @@ export class BotInstance {
 
   async checkSchedules() {
     if (this.state.connection !== 'connected' || !this.sock) return;
-    if (!this.capabilities.announcements) return;
     const now = new Date();
     const hh = now.getHours().toString().padStart(2, '0');
     const mm = now.getMinutes().toString().padStart(2, '0');
@@ -404,8 +436,8 @@ export class BotInstance {
     const { openTime, closeTime, morningTime, morningMessage } = this.state.schedules;
     const adminGroups = this.state.groups.filter((g) => g.isAdmin);
 
-    // Morning message
-    if (morningTime && morningTime === hhmm && this.lastScheduleRun.morning !== today) {
+    // Morning message (requires announcements capability)
+    if (this.capabilities.announcements && morningTime && morningTime === hhmm && this.lastScheduleRun.morning !== today) {
       this.lastScheduleRun.morning = today;
       if (morningMessage) {
         for (const group of adminGroups) {
@@ -418,8 +450,8 @@ export class BotInstance {
       }
     }
 
-    // Open groups
-    if (openTime && openTime === hhmm && this.lastScheduleRun.open !== today) {
+    // Open groups (requires announcements capability)
+    if (this.capabilities.announcements && openTime && openTime === hhmm && this.lastScheduleRun.open !== today) {
       this.lastScheduleRun.open = today;
       for (const group of adminGroups) {
         try {
@@ -430,8 +462,8 @@ export class BotInstance {
       console.log(`🔓 ${this.id}: Opened ${adminGroups.length} group(s)`);
     }
 
-    // Close groups
-    if (closeTime && closeTime === hhmm && this.lastScheduleRun.close !== today) {
+    // Close groups (requires announcements capability)
+    if (this.capabilities.announcements && closeTime && closeTime === hhmm && this.lastScheduleRun.close !== today) {
       this.lastScheduleRun.close = today;
       for (const group of adminGroups) {
         try {
@@ -440,6 +472,136 @@ export class BotInstance {
       }
       this.addLog('groups_closed', { details: `Closed ${adminGroups.length} group(s)` });
       console.log(`🔒 ${this.id}: Closed ${adminGroups.length} group(s)`);
+    }
+
+    // Quiz — only if quiz capability is enabled
+    if (this.capabilities.quiz && this.quizState.quizTime === hhmm && this.lastScheduleRun.quiz !== today) {
+      this.lastScheduleRun.quiz = today;
+      for (const group of adminGroups) {
+        await this.sendQuiz(group.jid);
+      }
+      if (this.quizState.quizzesSent >= QUIZZES_BEFORE_RESULTS) {
+        await this.sendQuizResults();
+      }
+    }
+  }
+
+  // --- Quiz: send a question as a WhatsApp poll ---
+  async sendQuiz(groupJid) {
+    const q = getQuizQuestion(this.quizState.quizIndex);
+    this.quizState.quizIndex++;
+    try {
+      const sent = await this.sock.sendMessage(groupJid, {
+        poll: {
+          name: `📝 Quiz #${this.quizState.quizzesSent + 1}: ${q.question}`,
+          values: q.options,
+          selectableCount: 1,
+        },
+      });
+      const pollKey = sent?.key?.id;
+      if (pollKey) {
+        this.quizState.activePolls[pollKey] = {
+          groupJid,
+          correctIndex: q.correctIndex,
+          votes: {},
+        };
+      }
+      this.quizState.quizzesSent++;
+      this.addLog('quiz_sent', { group: groupJid, details: `Quiz #${this.quizState.quizzesSent}: ${q.question.slice(0, 60)}` });
+      console.log(`📝 ${this.id}: Quiz #${this.quizState.quizzesSent} sent to ${groupJid}`);
+    } catch (e) {
+      console.error(`❌ ${this.id} quiz send error:`, e.message);
+    }
+  }
+
+  // --- Quiz: track poll votes ---
+  handlePollUpdates(updates) {
+    for (const update of updates) {
+      const pollKey = update.key?.id;
+      if (!pollKey) continue;
+      const poll = this.quizState.activePolls[pollKey];
+      if (!poll) continue;
+      const pollUpdates = update.pollUpdates;
+      if (!pollUpdates) continue;
+
+      // Baileys sends vote updates with name (voterJid) and votes (selected option indexes)
+      for (const vote of pollUpdates.votes || []) {
+        const voterJid = vote.key?.participant || update.key?.participant;
+        if (!voterJid) continue;
+        const selected = vote.vote?.selectedOptions || [];
+        const selectedIndexes = selected.map((s) => s.parent || s.index).filter((i) => i !== undefined);
+        poll.votes[voterJid] = selectedIndexes;
+
+        // Track score
+        if (!this.quizState.scores[poll.groupJid]) this.quizState.scores[poll.groupJid] = {};
+        if (!this.quizState.scores[poll.groupJid][voterJid]) {
+          this.quizState.scores[poll.groupJid][voterJid] = { correct: 0, total: 0 };
+        }
+        const score = this.quizState.scores[poll.groupJid][voterJid];
+        score.total++;
+        if (selectedIndexes.length === 1 && selectedIndexes[0] === poll.correctIndex) score.correct++;
+      }
+    }
+  }
+
+  // --- Quiz: send results after N quizzes ---
+  async sendQuizResults() {
+    for (const [groupJid, participants] of Object.entries(this.quizState.scores)) {
+      if (!Object.keys(participants).length) continue;
+      const lines = Object.entries(participants)
+        .sort(([, a], [, b]) => b.correct - a.correct)
+        .map(([jid, s], i) => {
+          const name = jid.split('@')[0].split(':')[0];
+          const pct = s.total ? Math.round((s.correct / s.total) * 100) : 0;
+          return `${i + 1}. +${name} — ${s.correct}/${s.total} (${pct}%)`;
+        });
+      const summary = `🏆 *Quiz Results (${QUIZZES_BEFORE_RESULTS} rounds)*\n\n${lines.join('\n')}\n\n🎉 Well done! New quiz round starting soon. — *ExcelMind-Bot* 🤖`;
+      try {
+        await this.sock.sendMessage(groupJid, { text: summary });
+        this.addLog('quiz_results', { group: groupJid, details: `Results sent for ${QUIZZES_BEFORE_RESULTS} quizzes` });
+        console.log(`🏆 ${this.id}: Quiz results sent to ${groupJid}`);
+      } catch (e) {
+        console.error(`❌ ${this.id} results send error:`, e.message);
+      }
+    }
+    // Reset after sending results
+    this.quizState.quizzesSent = 0;
+    this.quizState.scores = {};
+    this.quizState.activePolls = {};
+  }
+
+  // --- Greeter: welcome new members ---
+  async handleParticipantUpdate(update) {
+    if (!this.capabilities.greeter) return;
+    if (update.action !== 'add') return;
+    const groupJid = update.id;
+    if (!groupJid?.endsWith('@g.us')) return;
+    const adminGroups = this.state.groups.filter((g) => g.isAdmin);
+    if (!adminGroups.find((g) => g.jid === groupJid)) return;
+
+    for (const participant of update.participants || []) {
+      try {
+        await this.sock.sendMessage(groupJid, {
+          text: this.state.quiz.welcomeMessage,
+          mentions: [participant],
+        });
+        this.addLog('member_welcomed', { group: groupJid, sender: participant });
+        console.log(`👋 ${this.id}: Welcomed ${participant} in ${groupJid}`);
+      } catch (e) {
+        console.error(`❌ ${this.id} welcome error:`, e.message);
+      }
+    }
+  }
+
+  // --- Quiz settings update ---
+  updateQuizSettings(newSettings) {
+    if (newSettings.quizTime) {
+      this.quizState.quizTime = newSettings.quizTime;
+      this.state.quiz.quizTime = newSettings.quizTime;
+    }
+    if (newSettings.welcomeMessage !== undefined) {
+      this.quizState.welcomeMessage = newSettings.welcomeMessage;
+      this.state.quiz.welcomeMessage = newSettings.welcomeMessage;
     }
   }
 
@@ -454,6 +616,7 @@ export class BotInstance {
       botNumber: this.state.botNumber,
       active: this.active,
       capabilities: this.capabilities,
+      quiz: this.state.quiz,
     };
   }
 

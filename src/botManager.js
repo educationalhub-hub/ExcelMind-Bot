@@ -94,6 +94,13 @@ export class BotManager {
     await this.saveConfigs();
   }
 
+  async logoutBot(id) {
+    const bot = this.bots.get(id);
+    if (!bot) throw new Error(`Bot ${id} not found`);
+    await bot.logout();
+    await this.saveConfigs();
+  }
+
   getBot(id) {
     return this.bots.get(id);
   }
