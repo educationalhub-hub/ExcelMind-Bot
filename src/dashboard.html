@@ -881,7 +881,7 @@ async function setUserCredits(id){
   loadAdminUsers();
 }
 async function resetCredits(id){
-  if(!confirm('Reset this user\\'s message credits to 0?'))return;
+  if(!confirm('Reset this user\'s message credits to 0?'))return;
   await fetch(`/api/admin/users/${id}/reset-credits`,{method:'PUT'});
   loadAdminUsers();
 }
