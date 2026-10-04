@@ -398,6 +398,8 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <button onclick="showAdminView('activity',this)">📈 Activity</button>
       <button onclick="showAdminView('announcements',this)">📢 Announcements</button>
       <button onclick="showAdminView('verifications',this)">💳 Verifications</button>
+      <button onclick="showAdminView('plans',this)">📦 Plans & Pricing</button>
+      <button onclick="showAdminView('broadcasts',this)">📣 Broadcasts</button>
     </div>
 
     <div id="admin-stats">
@@ -426,7 +428,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <div class="card">
         <h2>All Users</h2>
         <div style="overflow-x:auto"><table>
-          <thead><tr><th>Email</th><th>Name</th><th>Plan</th><th>Role</th><th>Bots</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Email</th><th>Name</th><th>Plan</th><th>Role</th><th>Bots</th><th>Msgs</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
           <tbody id="users-tbody"></tbody>
         </table></div>
       </div>
@@ -455,6 +457,48 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
           <tbody id="verify-tbody"></tbody>
         </table></div>
       </div>
+    </div>
+
+    <div id="admin-plans" hidden>
+      <div class="card">
+        <h2>Plans & Pricing <button class="btn btn-primary btn-sm" style="float:right" onclick="showPlanModal()">+ Add Plan</button></h2>
+        <p style="color:var(--muted);margin-bottom:16px">Manage subscription packages — change prices, features, message limits, and add new packages.</p>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>Key</th><th>Name</th><th>Price</th><th>Max Bots</th><th>Msg Limit</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="plans-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="admin-broadcasts" hidden>
+      <div class="card">
+        <h2>Create Broadcast</h2>
+        <p style="color:var(--muted);margin-bottom:12px">Broadcast messages appear as a scrolling marquee on the homepage. Users can dismiss them with ✕, but they reappear on next visit.</p>
+        <div class="form-group"><label>Message</label><textarea id="broadcast-msg" placeholder="Type a short announcement..."></textarea></div>
+        <button class="btn btn-primary btn-sm" onclick="createBroadcast()">Create Broadcast</button>
+      </div>
+      <div class="card">
+        <h2>Existing Broadcasts</h2>
+        <div id="broadcast-list" style="color:var(--muted)">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Plan Edit Modal -->
+<div class="modal-overlay" id="plan-modal" hidden onclick="if(event.target===this)hidePlanModal()">
+  <div class="modal">
+    <h2 style="margin-bottom:20px" id="plan-modal-title">Add Plan</h2>
+    <input type="hidden" id="plan-edit-id">
+    <div class="form-group"><label>Plan Key (unique identifier)</label><input type="text" id="plan-key" placeholder="e.g. premium"></div>
+    <div class="form-group"><label>Display Name</label><input type="text" id="plan-name" placeholder="e.g. Premium"></div>
+    <div class="form-group"><label>Price (display text)</label><input type="text" id="plan-price" placeholder="e.g. ₦5,000"></div>
+    <div class="form-group"><label>Max Bots (-1 for unlimited)</label><input type="number" id="plan-maxbots" placeholder="5"></div>
+    <div class="form-group"><label>Message Limit (monthly)</label><input type="number" id="plan-msglimit" placeholder="2000"></div>
+    <div class="form-group"><label>Features (one per line)</label><textarea id="plan-features" placeholder="Up to 10 bots&#10;Anti-link & anti-abuse"></textarea></div>
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button class="btn btn-outline" onclick="hidePlanModal()" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" onclick="savePlan()" style="flex:1">Save Plan</button>
     </div>
   </div>
 </div>
@@ -553,7 +597,7 @@ async function checkAuth(){
     document.getElementById('user-email').textContent=data.user.email;
     userPlan=data.user.plan||'free';
     if(data.user.role==='admin'||data.user.role==='founder') document.getElementById('admin-tab').hidden=false;
-    loadBots(); loadProfile(); loadPlans(); loadCredits();
+    loadBots(); loadProfile(); loadPlans(); loadCredits(); loadNotifications();
   }catch{window.location.href='/login';}
 }
 
@@ -594,7 +638,7 @@ function showView(view,el){
 }
 
 // --- Admin (inline) ---
-function loadAdminView(){loadAdminStats();loadAdminAllBots();loadAdminUsers();loadAdminActivity();loadAdminAnnouncements();loadAdminVerifications();}
+function loadAdminView(){loadAdminStats();loadAdminAllBots();loadAdminUsers();loadAdminActivity();loadAdminAnnouncements();loadAdminVerifications();loadAdminPlans();loadAdminBroadcasts();}
 function showAdminView(view,el){
   document.getElementById('admin-stats').hidden=view!=='stats';
   document.getElementById('admin-allbots').hidden=view!=='allbots';
@@ -602,6 +646,8 @@ function showAdminView(view,el){
   document.getElementById('admin-activity').hidden=view!=='activity';
   document.getElementById('admin-announcements').hidden=view!=='announcements';
   document.getElementById('admin-verifications').hidden=view!=='verifications';
+  document.getElementById('admin-plans').hidden=view!=='plans';
+  document.getElementById('admin-broadcasts').hidden=view!=='broadcasts';
   document.querySelectorAll('.admin-subnav button').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
   if(view==='stats') loadAdminStats();
@@ -610,6 +656,8 @@ function showAdminView(view,el){
   if(view==='activity') loadAdminActivity();
   if(view==='announcements') loadAdminAnnouncements();
   if(view==='verifications') loadAdminVerifications();
+  if(view==='plans') loadAdminPlans();
+  if(view==='broadcasts') loadAdminBroadcasts();
 }
 async function loadAdminAllBots(){
   try{
@@ -660,20 +708,35 @@ async function loadAdminStats(){
 async function loadAdminUsers(){
   try{
     const res=await fetch('/api/admin/users');const users=await res.json();
-    document.getElementById('users-tbody').innerHTML=users.map(u=>`<tr>
+    document.getElementById('users-tbody').innerHTML=users.map(u=>{
+      const isUnlimited=u.role==='founder'||u.role==='admin';
+      const used=u.messages_used||0;
+      const limitLabel=isUnlimited?'∞':(u.custom_message_limit!==null&&u.custom_message_limit!==undefined?u.custom_message_limit+' (custom)':'plan');
+      return `<tr>
       <td>${u.email}</td><td>${u.name||'-'}</td>
       <td><span class="badge badge-${u.plan}">${u.plan}</span></td>
       <td><span class="badge badge-${u.role}">${u.role}</span></td>
       <td>${u.bot_count||0}</td>
+      <td style="font-size:12px">${isUnlimited?'∞':used+' / '+limitLabel}</td>
       <td><span class="badge ${u.is_active?'badge-active':'badge-inactive'}">${u.is_active?'Active':'Inactive'}</span></td>
       <td style="font-size:12px;color:var(--muted)">${new Date(u.created_at).toLocaleDateString()}</td>
       <td class="user-actions">
         ${u.is_active?`<button class="btn btn-outline btn-sm" onclick="toggleUser(${u.id},false)">Deactivate</button>`:`<button class="btn btn-success btn-sm" onclick="toggleUser(${u.id},true)">Activate</button>`}
         ${u.role==='user'?`<button class="btn btn-outline btn-sm" onclick="setRole(${u.id},'admin')">Make Admin</button>`:`<button class="btn btn-outline btn-sm" onclick="setRole(${u.id},'user')" ${u.role==='founder'?'disabled':''}>Demote</button>`}
-        <select class="btn btn-outline btn-sm" onchange="setPlan(${u.id},this.value);this.value=''" style="padding:4px 8px"><option value="">Plan...</option><option value="free">Free</option><option value="pro">Pro</option><option value="business">Business</option></select>
+        <select class="btn btn-outline btn-sm" onchange="setPlan(${u.id},this.value);this.value=''" style="padding:4px 8px" id="plan-sel-${u.id}"></select>
+        <button class="btn btn-outline btn-sm" onclick="setUserCredits(${u.id})" ${isUnlimited?'disabled':''}>Set Credits</button>
+        <button class="btn btn-success btn-sm" onclick="resetCredits(${u.id})" ${isUnlimited?'disabled':''}>Reset</button>
         <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id},'${u.email}')" ${u.role==='founder'?'disabled':''}>Delete</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
+    // Populate plan dropdowns dynamically
+    fetch('/api/admin/plans').then(r=>r.json()).then(plans=>{
+      users.forEach(u=>{
+        const sel=document.getElementById('plan-sel-'+u.id);
+        if(sel){sel.innerHTML='<option value="">Plan...</option>'+plans.map(p=>`<option value="${p.plan_key}" ${p.plan_key===u.plan?'selected':''}>${p.name}</option>`).join('');}
+      });
+    }).catch(()=>{});
   }catch{}
 }
 async function toggleUser(id,active){await fetch(`/api/admin/users/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({isActive:active})});loadAdminUsers();loadAdminStats();}
@@ -706,6 +769,138 @@ async function createAnnouncement(){
 }
 async function deleteAnnouncement(id){if(!confirm('Delete this announcement?'))return;await fetch(`/api/admin/announcements/${id}`,{method:'DELETE'});loadAdminAnnouncements();}
 async function broadcastAnnouncement(id){if(!confirm('Broadcast this announcement to all connected bot groups?'))return;const res=await fetch(`/api/admin/announcements/${id}/broadcast`,{method:'POST'});const d=await res.json();if(d.error)alert(d.error);else alert(`Broadcast sent to ${d.sent} group(s)!`);}
+
+// --- Admin: Plans management ---
+async function loadAdminPlans(){
+  try{
+    const res=await fetch('/api/admin/plans');const plans=await res.json();
+    document.getElementById('plans-tbody').innerHTML=plans.map(p=>`<tr>
+      <td><span class="badge badge-${p.plan_key}">${p.plan_key}</span></td>
+      <td>${p.name}</td>
+      <td>${p.price}</td>
+      <td>${p.max_bots===-1?'Unlimited':p.max_bots}</td>
+      <td>${p.message_limit}</td>
+      <td><span class="badge ${p.is_active?'badge-active':'badge-inactive'}">${p.is_active?'Active':'Off'}</span></td>
+      <td class="user-actions">
+        <button class="btn btn-outline btn-sm" onclick="editPlan(${p.id})">Edit</button>
+        ${p.plan_key==='free'?'':`<button class="btn btn-danger btn-sm" onclick="deletePlan(${p.id})">Delete</button>`}
+      </td>
+    </tr>`).join('');
+  }catch{}
+}
+function showPlanModal(){
+  document.getElementById('plan-modal-title').textContent='Add Plan';
+  document.getElementById('plan-edit-id').value='';
+  document.getElementById('plan-key').value='';document.getElementById('plan-key').disabled=false;
+  document.getElementById('plan-name').value='';
+  document.getElementById('plan-price').value='';
+  document.getElementById('plan-maxbots').value='';
+  document.getElementById('plan-msglimit').value='';
+  document.getElementById('plan-features').value='';
+  document.getElementById('plan-modal').hidden=false;
+}
+function editPlan(id){
+  fetch('/api/admin/plans').then(r=>r.json()).then(plans=>{
+    const p=plans.find(x=>x.id===id);if(!p)return;
+    document.getElementById('plan-modal-title').textContent='Edit Plan';
+    document.getElementById('plan-edit-id').value=p.id;
+    document.getElementById('plan-key').value=p.plan_key;document.getElementById('plan-key').disabled=true;
+    document.getElementById('plan-name').value=p.name;
+    document.getElementById('plan-price').value=p.price;
+    document.getElementById('plan-maxbots').value=p.max_bots;
+    document.getElementById('plan-msglimit').value=p.message_limit;
+    document.getElementById('plan-features').value=(p.features||[]).join('\n');
+    document.getElementById('plan-modal').hidden=false;
+  });
+}
+function hidePlanModal(){document.getElementById('plan-modal').hidden=true;}
+async function savePlan(){
+  const id=document.getElementById('plan-edit-id').value;
+  const features=document.getElementById('plan-features').value.split('\n').map(f=>f.trim()).filter(Boolean);
+  const data={
+    name:document.getElementById('plan-name').value.trim(),
+    price:document.getElementById('plan-price').value.trim()||'₦0',
+    max_bots:parseInt(document.getElementById('plan-maxbots').value)||1,
+    message_limit:parseInt(document.getElementById('plan-msglimit').value)||200,
+    features,
+  };
+  if(!data.name){alert('Plan name is required');return;}
+  if(id){
+    await fetch(`/api/admin/plans/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  }else{
+    data.plan_key=document.getElementById('plan-key').value.trim().toLowerCase();
+    if(!data.plan_key){alert('Plan key is required');return;}
+    await fetch('/api/admin/plans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  }
+  hidePlanModal();loadAdminPlans();
+}
+async function deletePlan(id){
+  if(!confirm('Delete this plan? Users on this plan will keep their current plan.'))return;
+  await fetch(`/api/admin/plans/${id}`,{method:'DELETE'});
+  loadAdminPlans();
+}
+
+// --- Admin: Broadcasts management ---
+async function loadAdminBroadcasts(){
+  try{
+    const res=await fetch('/api/admin/broadcasts');const items=await res.json();
+    if(!items.length){document.getElementById('broadcast-list').innerHTML='<div style="color:var(--muted)">No broadcasts yet.</div>';return;}
+    document.getElementById('broadcast-list').innerHTML=items.map(b=>`<div class="ann-item">
+      <p>${b.message}</p>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">${new Date(b.created_at).toLocaleString()}</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn ${b.is_active?'btn-outline':'btn-success'} btn-sm" onclick="toggleBroadcast(${b.id},${!b.is_active})">${b.is_active?'Deactivate':'Activate'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBroadcast(${b.id})">Delete</button>
+      </div>
+    </div>`).join('');
+  }catch{}
+}
+async function createBroadcast(){
+  const msg=document.getElementById('broadcast-msg').value.trim();
+  if(!msg){alert('Message is required');return;}
+  await fetch('/api/admin/broadcasts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+  document.getElementById('broadcast-msg').value='';
+  loadAdminBroadcasts();
+}
+async function toggleBroadcast(id,active){
+  await fetch(`/api/admin/broadcasts/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:active})});
+  loadAdminBroadcasts();
+}
+async function deleteBroadcast(id){
+  if(!confirm('Delete this broadcast?'))return;
+  await fetch(`/api/admin/broadcasts/${id}`,{method:'DELETE'});
+  loadAdminBroadcasts();
+}
+
+// --- Admin: Credit management ---
+async function setUserCredits(id){
+  const val=prompt('Enter custom message limit for this user (leave empty to use plan default):');
+  if(val===null)return;
+  const body=val===''?{custom_message_limit:null}:{custom_message_limit:parseInt(val,10)};
+  await fetch(`/api/admin/users/${id}/credits`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  loadAdminUsers();
+}
+async function resetCredits(id){
+  if(!confirm('Reset this user\\'s message credits to 0?'))return;
+  await fetch(`/api/admin/users/${id}/reset-credits`,{method:'PUT'});
+  loadAdminUsers();
+}
+
+// --- Notifications ---
+async function loadNotifications(){
+  try{
+    const res=await fetch('/api/notifications');if(!res.ok)return;
+    const items=await res.json();
+    const unread=items.filter(n=>!n.is_read);
+    if(unread.length){
+      const toast=document.createElement('div');
+      toast.style.cssText='position:fixed;top:20px;right:20px;background:var(--card);border:1px solid var(--primary);border-radius:12px;padding:16px 20px;max-width:360px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:200';
+      toast.innerHTML=unread.map(n=>`<div style="margin-bottom:8px">${n.message}</div>`).join('')+'<button class="btn btn-primary btn-sm" onclick="this.parentElement.remove()">Got it</button>';
+      document.body.appendChild(toast);
+      unread.forEach(n=>fetch(`/api/notifications/${n.id}/read`,{method:'PUT'}));
+    }
+  }catch{}
+}
 
 // --- Bot list ---
 async function loadBots(){
@@ -1067,7 +1262,7 @@ async function loadPlans(){
       const price=p.maxBots==='Unlimited'?'Unlimited bots':`${p.maxBots} bot${p.maxBots!==1?'s':''}`;
       return `<div class="plan-card ${isCurrent?'current':''}">
         <div><div class="plan-name">${p.name}</div><div class="plan-features-list">${p.features.join(' • ')}</div></div>
-        <div style="text-align:center">${p.id==='free'?'<div class="plan-price">₦0</div>':`<div class="plan-price">₦${p.id==='pro'?'2,000':'2,500'}</div><div style="font-size:13px;color:var(--muted)">/ month</div>`}
+        <div style="text-align:center"><div class="plan-price">${p.price||'₦0'}</div>${p.id==='free'?'':'<div style="font-size:13px;color:var(--muted)">/ month</div>'}
         ${isCurrent?'<div style="margin-top:8px"><span class="badge s-connected">Current Plan</span></div>':`<button class="btn ${p.id==='free'?'btn-outline':'btn-primary'} btn-sm" style="margin-top:8px" onclick="upgradePlan('${p.id}')">${p.id==='free'?'Downgrade':'Upgrade'}</button>`}
         </div></div>`;
     }).join('');

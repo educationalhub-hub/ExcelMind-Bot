@@ -78,6 +78,14 @@ a{color:var(--primary);text-decoration:none}
 .footer{text-align:center;padding:32px 24px;color:var(--muted);font-size:14px;border-top:1px solid var(--border)}
 .footer-links{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
 .footer-links a{color:var(--muted);font-weight:600}
+
+/* Broadcast marquee */
+.broadcast-bar{background:linear-gradient(90deg,var(--primary),var(--primary-dark));color:#fff;padding:10px 0;overflow:hidden;position:relative;display:flex;align-items:center}
+.broadcast-bar .marquee-wrap{flex:1;overflow:hidden;padding-right:40px}
+.broadcast-bar .marquee-content{white-space:nowrap;display:inline-block;padding-left:100%;animation:marquee 25s linear infinite;font-size:15px;font-weight:600}
+.broadcast-bar .dismiss-btn{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.25);border:none;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;z-index:1}
+.broadcast-bar .dismiss-btn:hover{background:rgba(255,255,255,.4)}
+@keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
 </style>
 </head>
 <body>
@@ -93,6 +101,11 @@ a{color:var(--primary);text-decoration:none}
     <a href="/signup" class="btn btn-primary">Get Started</a>
   </div>
 </nav>
+
+<div id="broadcast-bar" class="broadcast-bar" style="display:none">
+  <div class="marquee-wrap"><div class="marquee-content" id="broadcast-text"></div></div>
+  <button class="dismiss-btn" onclick="dismissBroadcast()">✕</button>
+</div>
 
 <section class="hero">
   <div class="platform-badges">
@@ -121,45 +134,8 @@ a{color:var(--primary);text-decoration:none}
 
 <section class="pricing" id="pricing">
   <h2 class="section-title">Simple Pricing</h2>
-  <div class="pricing-grid">
-    <div class="price-card">
-      <div class="price-name">Free</div>
-      <div class="price-amount">$0</div>
-      <div class="price-period">forever</div>
-      <ul class="price-features">
-        <li>1 bot (WhatsApp or Telegram)</li>
-        <li>Anti-link moderation</li>
-        <li>Basic dashboard</li>
-        <li>QR code / token pairing</li>
-      </ul>
-      <a href="/signup" class="btn btn-outline">Start Free</a>
-    </div>
-    <div class="price-card featured">
-      <div class="price-badge">Most Popular</div>
-      <div class="price-name">Pro</div>
-      <div class="price-amount">₦2,000</div>
-      <div class="price-period">/ month</div>
-      <ul class="price-features">
-        <li>Up to 5 bots</li>
-        <li>Anti-link & anti-abuse</li>
-        <li>Quiz system</li>
-        <li>Greeter</li>
-        <li>Everything except schedules</li>
-      </ul>
-      <a href="/signup" class="btn btn-primary">Get Pro</a>
-    </div>
-    <div class="price-card">
-      <div class="price-name">Business</div>
-      <div class="price-amount">₦2,500</div>
-      <div class="price-period">/ month</div>
-      <ul class="price-features">
-        <li>Unlimited bots</li>
-        <li>Everything unlocked</li>
-        <li>Scheduled announcements</li>
-        <li>Priority support</li>
-      </ul>
-      <a href="/signup" class="btn btn-outline">Get Business</a>
-    </div>
+  <div class="pricing-grid" id="pricing-grid">
+    <div style="text-align:center;color:var(--muted);padding:40px">Loading plans...</div>
   </div>
 </section>
 
@@ -267,6 +243,42 @@ a{color:var(--primary);text-decoration:none}
 </footer>
 
 <script>
+// Load broadcasts for homepage marquee
+fetch('/api/broadcasts').then(r=>r.json()).then(data=>{
+  if(data.broadcasts&&data.broadcasts.length){
+    const msg=data.broadcasts.map(b=>b.message).join('   •   ');
+    const dismissed=sessionStorage.getItem('broadcast_dismissed');
+    if(dismissed!==msg){
+      document.getElementById('broadcast-text').textContent='📢 '+msg;
+      document.getElementById('broadcast-bar').style.display='flex';
+    }
+  }
+}).catch(()=>{});
+function dismissBroadcast(){
+  const msg=document.getElementById('broadcast-text').textContent;
+  sessionStorage.setItem('broadcast_dismissed',msg);
+  document.getElementById('broadcast-bar').style.display='none';
+}
+
+// Load plans from API for dynamic pricing
+fetch('/api/billing/plans').then(r=>r.json()).then(data=>{
+  if(!data.plans||!data.plans.length)return;
+  const grid=document.getElementById('pricing-grid');
+  grid.innerHTML=data.plans.map(p=>{
+    const featured=p.id==='pro'?'featured':'';
+    const badge=p.id==='pro'?'<div class="price-badge">Most Popular</div>':'';
+    const features=(p.features||[]).map(f=>`<li>${f}</li>`).join('');
+    return `<div class="price-card ${featured}">
+      ${badge}
+      <div class="price-name">${p.name}</div>
+      <div class="price-amount">${p.price||'₦0'}</div>
+      <div class="price-period">${p.id==='free'?'forever':'/ month'}</div>
+      <ul class="price-features">${features}</ul>
+      <a href="/signup" class="btn ${p.id==='pro'?'btn-primary':'btn-outline'}">${p.id==='free'?'Start Free':'Get '+p.name}</a>
+    </div>`;
+  }).join('');
+}).catch(()=>{});
+
 const APP_URL=window.location.origin;
 const SHARE_TEXT=encodeURIComponent('Check out OmniMod — manage WhatsApp & Telegram moderation bots from one dashboard! ');
 

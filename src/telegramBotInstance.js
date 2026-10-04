@@ -117,7 +117,7 @@ export class TelegramBotInstance {
   async checkMessageCredit() {
     if (!this.userId) return { allowed: true, unlimited: true };
     try {
-      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at FROM users WHERE id = $1', [this.userId]);
+      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at, custom_message_limit FROM users WHERE id = $1', [this.userId]);
       if (!result.rows.length) return { allowed: true, unlimited: true };
       const user = result.rows[0];
       if (user.role === 'founder' || user.role === 'admin') return { allowed: true, unlimited: true };
@@ -127,7 +127,7 @@ export class TelegramBotInstance {
         await pool.query('UPDATE users SET messages_used = 0, messages_reset_at = CURRENT_DATE WHERE id = $1', [this.userId]);
         user.messages_used = 0;
       }
-      const limit = config.messageLimits[user.plan] ?? config.messageLimits.free;
+      const limit = user.custom_message_limit ?? (config.messageLimits[user.plan] ?? config.messageLimits.free);
       const used = user.messages_used || 0;
       if (used >= limit) return { allowed: false, limit, used, remaining: 0 };
       return { allowed: true, limit, used, remaining: limit - used };

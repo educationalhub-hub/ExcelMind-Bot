@@ -7,6 +7,7 @@ import { requireAuth, requireAdmin, authRouter, COOKIE_NAME } from './auth.js';
 import { billingRouter, handleStripeWebhook } from './billing.js';
 import { config, APP_NAME } from './config.js';
 import { pool } from './db.js';
+import { getAllPlans, createPlan, updatePlan, deletePlan } from './planManager.js';
 
 async function sendHtml(res, file) {
   try {
@@ -101,6 +102,35 @@ export function createApp(botManager) {
     }
   });
 
+  // --- Public broadcasts (homepage marquee) ---
+  app.get('/api/broadcasts', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT id, message FROM broadcasts WHERE is_active = true ORDER BY created_at DESC');
+      res.json({ broadcasts: result.rows });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch broadcasts' });
+    }
+  });
+
+  // --- Notifications (behind auth) ---
+  app.get('/api/notifications', requireAuth, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT id, message, is_read, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20', [req.user.id]);
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+  });
+
+  app.put('/api/notifications/:id/read', requireAuth, async (req, res) => {
+    try {
+      await pool.query('UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to mark notification' });
+    }
+  });
+
   // --- API: Admin (behind auth + admin) ---
   const adminApi = express.Router();
   adminApi.use(requireAuth, requireAdmin);
@@ -136,6 +166,7 @@ export function createApp(botManager) {
     try {
       const result = await pool.query(
         `SELECT u.id, u.email, u.name, u.plan, u.role, u.is_active, u.created_at,
+                u.messages_used, u.custom_message_limit, u.messages_reset_at,
                 (SELECT COUNT(*) FROM bots WHERE user_id = u.id) as bot_count
          FROM users u ORDER BY u.created_at DESC`
       );
@@ -165,7 +196,8 @@ export function createApp(botManager) {
         params.push(role);
       }
       if (plan !== undefined) {
-        if (!['free', 'pro', 'business'].includes(plan)) return res.status(400).json({ error: 'Invalid plan' });
+        const validPlan = await pool.query('SELECT 1 FROM plans WHERE plan_key = $1 AND is_active = true', [plan]);
+        if (!validPlan.rows.length) return res.status(400).json({ error: 'Invalid plan' });
         setClauses.push(`plan = $${idx++}`);
         params.push(plan);
       }
@@ -377,6 +409,28 @@ export function createApp(botManager) {
 
       if (status === 'approved') {
         await pool.query('UPDATE users SET plan = $1 WHERE id = $2', [v.plan, v.user_id]);
+
+        // Create congratulations notification for the user
+        const planName = v.plan.charAt(0).toUpperCase() + v.plan.slice(1);
+        const congratsMsg = `🎉 Congratulations! Your upgrade to the ${planName} plan has been approved. You now have access to all ${planName} features. Thank you for choosing OmniMod!`;
+        await pool.query('INSERT INTO notifications (user_id, message) VALUES ($1, $2)', [v.user_id, congratsMsg]);
+
+        // Broadcast congratulations to the user's connected bot groups
+        const userBots = await pool.query('SELECT id FROM bots WHERE user_id = $1 AND active = true', [v.user_id]);
+        let sentCount = 0;
+        for (const row of userBots.rows) {
+          const bot = botManager.getBot(row.id);
+          if (bot && bot.state?.connection === 'connected') {
+            const adminGroups = (bot.state.groups || []).filter((g) => g.isAdmin);
+            for (const group of adminGroups) {
+              try {
+                await bot.sendInstruction(group.jid, `🎉 *Congratulations!* 🎉\n\nYour upgrade to the *${planName}* plan has been approved! You now have access to all the features of your new plan.\n\nThank you for choosing OmniMod! 🤖`);
+                sentCount++;
+              } catch (e) { /* ignore individual failures */ }
+            }
+          }
+        }
+        console.log(`🎉 Upgrade congratulations sent to ${sentCount} group(s) for user ${v.user_id}`);
       }
 
       res.json({ success: true, status, plan: v.plan });
@@ -395,16 +449,116 @@ export function createApp(botManager) {
     }
   });
 
+  // Set custom message limit for a user (admin only)
+  adminApi.put('/users/:id/credits', async (req, res) => {
+    const { custom_message_limit } = req.body || {};
+    try {
+      if (custom_message_limit === null || custom_message_limit === undefined) {
+        await pool.query('UPDATE users SET custom_message_limit = NULL WHERE id = $1', [req.params.id]);
+      } else {
+        const val = parseInt(custom_message_limit, 10);
+        if (isNaN(val) || val < 0) return res.status(400).json({ error: 'Invalid limit' });
+        await pool.query('UPDATE users SET custom_message_limit = $1 WHERE id = $2', [val, req.params.id]);
+      }
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to set credit limit' });
+    }
+  });
+
+  // --- Plans management (admin only) ---
+  adminApi.get('/plans', async (req, res) => {
+    try {
+      res.json(await getAllPlans());
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch plans' });
+    }
+  });
+
+  adminApi.post('/plans', async (req, res) => {
+    try {
+      res.json(await createPlan(req.body || {}));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  adminApi.put('/plans/:id', async (req, res) => {
+    try {
+      res.json(await updatePlan(req.params.id, req.body || {}));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  adminApi.delete('/plans/:id', async (req, res) => {
+    try {
+      await deletePlan(req.params.id);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete plan' });
+    }
+  });
+
+  // --- Broadcasts management (admin only) ---
+  adminApi.get('/broadcasts', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM broadcasts ORDER BY created_at DESC');
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch broadcasts' });
+    }
+  });
+
+  adminApi.post('/broadcasts', async (req, res) => {
+    const { message } = req.body || {};
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+    try {
+      const result = await pool.query('INSERT INTO broadcasts (message) VALUES ($1) RETURNING *', [message]);
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to create broadcast' });
+    }
+  });
+
+  adminApi.put('/broadcasts/:id', async (req, res) => {
+    const { is_active, message } = req.body || {};
+    try {
+      const setClauses = [];
+      const params = [];
+      let idx = 1;
+      if (is_active !== undefined) { setClauses.push(`is_active = $${idx++}`); params.push(is_active); }
+      if (message !== undefined) { setClauses.push(`message = $${idx++}`); params.push(message); }
+      if (setClauses.length) {
+        params.push(req.params.id);
+        await pool.query(`UPDATE broadcasts SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+      }
+      const result = await pool.query('SELECT * FROM broadcasts WHERE id = $1', [req.params.id]);
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update broadcast' });
+    }
+  });
+
+  adminApi.delete('/broadcasts/:id', async (req, res) => {
+    try {
+      await pool.query('DELETE FROM broadcasts WHERE id = $1', [req.params.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete broadcast' });
+    }
+  });
+
   app.use('/api/admin', adminApi);
 
   // --- API: Message credits (behind auth) ---
   app.get('/api/credits', requireAuth, async (req, res) => {
     try {
-      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at FROM users WHERE id = $1', [req.user.id]);
+      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at, custom_message_limit FROM users WHERE id = $1', [req.user.id]);
       if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
       const user = result.rows[0];
       const unlimited = user.role === 'founder' || user.role === 'admin';
-      const limit = unlimited ? -1 : (config.messageLimits[user.plan] ?? config.messageLimits.free);
+      const limit = unlimited ? -1 : (user.custom_message_limit ?? (config.messageLimits[user.plan] ?? config.messageLimits.free));
       // Monthly reset check
       const resetDate = new Date(user.messages_reset_at);
       const now = new Date();

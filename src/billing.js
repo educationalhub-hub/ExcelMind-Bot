@@ -14,15 +14,22 @@ export function billingRouter() {
   const router = express.Router();
 
   // Get current plan + available plans
-  router.get('/plans', (req, res) => {
-    const plans = Object.entries(config.plans).map(([id, p]) => ({
-      id,
-      name: p.name,
-      maxBots: p.maxBots === -1 ? 'Unlimited' : p.maxBots,
-      features: p.features,
-      stripePriceId: p.priceId,
-    }));
-    res.json({ plans });
+  router.get('/plans', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM plans WHERE is_active = true ORDER BY sort_order');
+      const plans = result.rows.map((row) => ({
+        id: row.plan_key,
+        name: row.name,
+        price: row.price,
+        maxBots: row.max_bots === -1 ? 'Unlimited' : row.max_bots,
+        messageLimit: row.message_limit,
+        features: row.features,
+        stripePriceId: config.plans[row.plan_key]?.priceId || null,
+      }));
+      res.json({ plans });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch plans' });
+    }
   });
 
   // Get current user's subscription status

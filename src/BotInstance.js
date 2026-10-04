@@ -170,7 +170,7 @@ export class BotInstance {
   async checkMessageCredit() {
     if (!this.userId) return { allowed: true, unlimited: true };
     try {
-      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at FROM users WHERE id = $1', [this.userId]);
+      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at, custom_message_limit FROM users WHERE id = $1', [this.userId]);
       if (!result.rows.length) return { allowed: true, unlimited: true };
       const user = result.rows[0];
       // Founder/admin: unlimited
@@ -182,7 +182,8 @@ export class BotInstance {
         await pool.query('UPDATE users SET messages_used = 0, messages_reset_at = CURRENT_DATE WHERE id = $1', [this.userId]);
         user.messages_used = 0;
       }
-      const limit = config.messageLimits[user.plan] ?? config.messageLimits.free;
+      // Admin can set a custom per-user limit that overrides the plan default
+      const limit = user.custom_message_limit ?? (config.messageLimits[user.plan] ?? config.messageLimits.free);
       const used = user.messages_used || 0;
       if (used >= limit) return { allowed: false, limit, used, remaining: 0 };
       return { allowed: true, limit, used, remaining: limit - used };
@@ -669,8 +670,11 @@ export class BotInstance {
 
     for (const participant of update.participants || []) {
       try {
+        const phoneNum = participant.split('@')[0].split(':')[0];
+        const name = `+${phoneNum}`;
+        const welcomeMsg = (this.state.quiz.welcomeMessage || '👋 Welcome to the group! Please read the group rules and enjoy your stay. — *OmniMod* 🤖').replace('{name}', name);
         await this.sock.sendMessage(groupJid, {
-          text: this.state.quiz.welcomeMessage,
+          text: welcomeMsg,
           mentions: [participant],
         });
         this.addLog('member_welcomed', { group: groupJid, sender: participant });

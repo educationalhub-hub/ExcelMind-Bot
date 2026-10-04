@@ -30,10 +30,13 @@ process.on('unhandledRejection', (reason) => {
 import { BotManager } from './botManager.js';
 import { createApp } from './dashboardServer.js';
 import { migrate } from './db.js';
+import { loadPlansFromDB } from './planManager.js';
 
 async function main() {
   // Run database migrations first
   await migrate();
+  // Load plans from database into config
+  await loadPlansFromDB();
 
   const botManager = new BotManager();
   await botManager.init();

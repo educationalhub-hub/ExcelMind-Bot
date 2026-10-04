@@ -63,6 +63,37 @@ export async function migrate() {
       );
     `);
 
+    // Create additional tables
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS plans (
+        id            SERIAL PRIMARY KEY,
+        plan_key       TEXT UNIQUE NOT NULL,
+        name           TEXT NOT NULL,
+        price          TEXT NOT NULL DEFAULT '₦0',
+        max_bots       INTEGER NOT NULL DEFAULT 1,
+        message_limit  INTEGER NOT NULL DEFAULT 200,
+        features       JSONB NOT NULL DEFAULT '[]',
+        is_active      BOOLEAN NOT NULL DEFAULT true,
+        sort_order     INTEGER NOT NULL DEFAULT 0,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS broadcasts (
+        id          SERIAL PRIMARY KEY,
+        message     TEXT NOT NULL,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS notifications (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        message     TEXT NOT NULL,
+        is_read     BOOLEAN NOT NULL DEFAULT false,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+
     // Add columns to existing tables if they don't exist (safe for already-created tables)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
@@ -70,9 +101,20 @@ export async function migrate() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS messages_reset_at DATE NOT NULL DEFAULT CURRENT_DATE`);
     await client.query(`ALTER TABLE bots ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'whatsapp'`);
     await client.query(`ALTER TABLE bots ADD COLUMN IF NOT EXISTS telegram_token TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_message_limit INTEGER`);
 
     // Make auth_dir nullable (telegram bots don't use it)
     await client.query(`ALTER TABLE bots ALTER COLUMN auth_dir DROP NOT NULL`);
+
+    // Seed default plans
+    await client.query(`
+      INSERT INTO plans (plan_key, name, price, max_bots, message_limit, features, sort_order)
+      VALUES
+        ('free', 'Free', '₦0', 1, 200, '["1 bot (WhatsApp or Telegram)","Anti-link moderation","Basic dashboard","QR code / token pairing"]', 0),
+        ('pro', 'Pro', '₦2,000', 5, 2000, '["Up to 5 bots","Anti-link & anti-abuse","Quiz system","Greeter","Everything except schedules"]', 1),
+        ('business', 'Business', '₦2,500', -1, 5000, '["Unlimited bots","Everything unlocked","Scheduled announcements","Priority support"]', 2)
+      ON CONFLICT (plan_key) DO NOTHING
+    `);
 
     // The very first user is the founder/admin
     const firstUser = await client.query('SELECT id FROM users ORDER BY id ASC LIMIT 1');
