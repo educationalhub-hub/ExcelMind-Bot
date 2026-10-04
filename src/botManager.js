@@ -90,6 +90,17 @@ export class BotManager {
 
     // WhatsApp
     if (!phoneNumber) throw new Error('Phone number is required');
+
+    // Prevent duplicate phone numbers — WhatsApp only allows one active session per number
+    const digits = String(phoneNumber).replace(/\D/g, '');
+    const dupCheck = await pool.query(
+      `SELECT id FROM bots WHERE platform = 'whatsapp' AND REPLACE(REPLACE(REPLACE(phone_number, '+', ''), ' ', ''), '-', '') = $1 AND active = true`,
+      [digits],
+    );
+    if (dupCheck.rows.length) {
+      throw new Error(`A bot with phone number ${phoneNumber} is already active. WhatsApp only allows one connection per phone number. Deactivate or delete the existing bot first.`);
+    }
+
     const authDir = join(config.authDirRoot, `user_${userId}`, botId);
     await mkdir(authDir, { recursive: true });
 
