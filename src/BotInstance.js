@@ -271,6 +271,9 @@ export class BotInstance {
       auth: state,
       logger: P({ level: 'silent' }),
       printQRInTerminal: false,
+      connectTimeoutMs: 30000,
+      keepAliveIntervalMs: 15000,
+      retryRequestDelayMs: 1000,
     });
 
     this.sock.ev.on('creds.update', saveCreds);
@@ -343,8 +346,14 @@ export class BotInstance {
 
       if (shouldReconnect) {
         this.reconnectAttempts++;
-        // After 5 consecutive failures, wipe stale auth and start fresh
-        if (this.reconnectAttempts >= 5) {
+        // After 5 consecutive failures, wipe stale auth — but only for auth
+        // failures (401/440/500), NOT for 408 timeouts which are transient
+        // network issues where the session is still valid.
+        const isAuthFailure =
+          statusCode === 401 ||
+          statusCode === 440 ||
+          statusCode === 500;
+        if (this.reconnectAttempts >= 5 && isAuthFailure) {
           console.log(`🧹 ${this.id}: ${this.reconnectAttempts} failed attempts — wiping auth for fresh QR`);
           this.reconnectAttempts = 0;
           this.qrRevision = 0;
@@ -354,8 +363,12 @@ export class BotInstance {
             console.error(`❌ ${this.id} auth cleanup error:`, e.message);
           }
         }
-        // Exponential backoff: 5s, 10s, 20s, 40s, 80s (capped at 80s)
-        const delay = Math.min(5000 * 2 ** (this.reconnectAttempts - 1), 80000);
+        // Reset attempt counter on 408 (transient timeout) — session is still valid
+        if (statusCode === 408) this.reconnectAttempts = 0;
+        // Faster backoff for 408 (3s fixed) vs exponential for other errors
+        const delay = statusCode === 408
+          ? 3000
+          : Math.min(5000 * 2 ** (this.reconnectAttempts - 1), 80000);
         console.log(`🔄 ${this.id} reconnecting in ${delay / 1000}s (attempt #${this.reconnectAttempts})...`);
         this.reconnectTimer = setTimeout(
           () => this.start().catch((e) => console.error(`❌ ${this.id} restart error:`, e)),
