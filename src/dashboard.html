@@ -310,7 +310,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
         <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0"><strong>Bank:</strong> <span>Opay</span></div>
       </div>
       <div id="verify-error" class="error" hidden></div>
-      <div class="form-group"><label>Plan</label><select id="verify-plan"><option value="pro">Pro — ₦1,500/month</option><option value="business">Business — ₦2,500/month</option></select></div>
+      <div class="form-group"><label>Plan</label><select id="verify-plan"><option value="pro">Pro — ₦2,000/month</option><option value="business">Business — ₦2,500/month</option></select></div>
       <div class="form-group"><label>Sender's Name</label><input type="text" id="verify-sender" placeholder="Name on the sending account"></div>
       <div class="form-group"><label>Bank (sender's bank)</label><input type="text" id="verify-bank" placeholder="e.g. GTBank, Access Bank, Opay..."></div>
       <div class="form-group"><label>Transaction ID / Reference</label><input type="text" id="verify-txn" placeholder="Transaction ID or reference number"></div>
@@ -373,7 +373,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
         <div style="border:2px solid var(--primary);border-radius:12px;padding:20px;text-align:center">
           <div style="font-size:18px;font-weight:800;margin-bottom:4px">Pro</div>
-          <div style="font-size:28px;font-weight:800;color:var(--primary)">₦1,500</div>
+          <div style="font-size:28px;font-weight:800;color:var(--primary)">₦2,000</div>
           <div style="font-size:13px;color:var(--muted);margin-bottom:12px">/ month</div>
           <div style="font-size:13px;color:var(--muted);text-align:left">✓ Up to 5 bots<br>✓ Anti-link & anti-abuse<br>✓ Quiz system<br>✓ Greeter<br>✗ Schedules locked</div>
           <button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="showView('premium',document.querySelectorAll('.nav-tab')[2])">Get Pro</button>
@@ -943,7 +943,7 @@ async function loadCapabilities(){
   }).join('');
   const hint=document.getElementById('cap-upgrade-hint');
   hint.hidden=(isAdmin()||userPlan==='pro'||userPlan==='business');
-  if(userPlan==='free')hint.innerHTML='🔒 Anti-Link and Announcements are locked on the Free plan. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade to Pro (₦1,500/mo)</a> to unlock them.';
+  if(userPlan==='free')hint.innerHTML='🔒 Anti-Link and Announcements are locked on the Free plan. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade to Pro (₦2,000/mo)</a> to unlock them.';
   else if(userPlan==='pro')hint.innerHTML='🔒 Schedules are a Business feature. <a href="#" onclick="showView(\'premium\',document.querySelectorAll(\'.nav-tab\')[2]);return false">Upgrade to Business (₦2,500/mo)</a> to unlock them.';
 }
 async function saveCapabilities(){
@@ -1067,7 +1067,7 @@ async function loadPlans(){
       const price=p.maxBots==='Unlimited'?'Unlimited bots':`${p.maxBots} bot${p.maxBots!==1?'s':''}`;
       return `<div class="plan-card ${isCurrent?'current':''}">
         <div><div class="plan-name">${p.name}</div><div class="plan-features-list">${p.features.join(' • ')}</div></div>
-        <div style="text-align:center">${p.id==='free'?'<div class="plan-price">₦0</div>':`<div class="plan-price">₦${p.id==='pro'?'1,500':'2,500'}</div><div style="font-size:13px;color:var(--muted)">/ month</div>`}
+        <div style="text-align:center">${p.id==='free'?'<div class="plan-price">₦0</div>':`<div class="plan-price">₦${p.id==='pro'?'2,000':'2,500'}</div><div style="font-size:13px;color:var(--muted)">/ month</div>`}
         ${isCurrent?'<div style="margin-top:8px"><span class="badge s-connected">Current Plan</span></div>':`<button class="btn ${p.id==='free'?'btn-outline':'btn-primary'} btn-sm" style="margin-top:8px" onclick="upgradePlan('${p.id}')">${p.id==='free'?'Downgrade':'Upgrade'}</button>`}
         </div></div>`;
     }).join('');
@@ -1110,7 +1110,7 @@ async function loadUserVerifications(){
     const res=await fetch('/api/billing/verifications');const items=await res.json();
     if(!items.length){document.getElementById('verify-history-card').hidden=true;return;}
     document.getElementById('verify-history-card').hidden=false;
-    document.getElementById('verify-history').innerHTML=items.map(v=>`<div class="group-item"><div><div class="group-name">${v.plan.charAt(0).toUpperCase()+v.plan.slice(1)} — ₦${v.plan==='pro'?'1,500':'2,500'}</div><div class="group-meta">${v.sender_name} • ${v.bank_name} • Ref: ${v.transaction_id}</div><div class="log-time">${new Date(v.created_at).toLocaleString()}</div></div><span class="badge ${v.status==='approved'?'s-connected':v.status==='rejected'?'s-stopped':'s-waiting'}">${v.status}</span></div>`).join('');
+    document.getElementById('verify-history').innerHTML=items.map(v=>`<div class="group-item"><div><div class="group-name">${v.plan.charAt(0).toUpperCase()+v.plan.slice(1)} — ₦${v.plan==='pro'?'2,000':'2,500'}</div><div class="group-meta">${v.sender_name} • ${v.bank_name} • Ref: ${v.transaction_id}</div><div class="log-time">${new Date(v.created_at).toLocaleString()}</div></div><span class="badge ${v.status==='approved'?'s-connected':v.status==='rejected'?'s-stopped':'s-waiting'}">${v.status}</span></div>`).join('');
   }catch{}
 }
 

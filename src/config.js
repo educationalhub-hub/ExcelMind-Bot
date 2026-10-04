@@ -32,7 +32,7 @@ export const config = {
   messageLimits: {
     free: 200,
     pro: 2000,
-    business: 10000,
+    business: 5000,
   },
 
   // Gated capabilities — free plan can only use these
