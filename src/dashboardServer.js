@@ -680,6 +680,7 @@ export function createApp(botManager) {
     res.json({
       connection: bot.state.connection,
       qr: bot.state.qr,
+      pairingCode: bot.state.pairingCode || null,
       botNumber: bot.state.botNumber,
       displayName: bot.displayName,
       role: bot.role,
@@ -688,6 +689,21 @@ export function createApp(botManager) {
       active: bot.active,
       capabilities: bot.capabilities,
     });
+  });
+
+  botApi.post('/bots/:botId/pairing-code', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    if (bot.platform === 'telegram') return res.status(400).json({ error: 'Pairing codes are for WhatsApp bots only' });
+    const { phoneNumber } = req.body || {};
+    const number = phoneNumber || bot.number;
+    if (!number) return res.status(400).json({ error: 'A phone number is required' });
+    try {
+      const code = await bot.requestPairingCode(number);
+      res.json({ code });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   botApi.put('/bots/:botId', async (req, res) => {

@@ -65,6 +65,7 @@ export class BotInstance {
     this.state = {
       connection: 'waiting',
       qr: null,
+      pairingCode: null,
       botNumber: null,
       groups: [],
       logs: [],
@@ -149,8 +150,38 @@ export class BotInstance {
   }
 
   updateGroups(groups) { this.state.groups = groups; }
-  updateConnection(status, qr = null) { this.state.connection = status; this.state.qr = qr; }
+  updateConnection(status, qr = null) {
+    this.state.connection = status;
+    this.state.qr = qr;
+    // Clear stale pairing code whenever connection state changes
+    if (status !== 'scan') this.state.pairingCode = null;
+  }
   setBotNumber(number) { this.state.botNumber = number; }
+
+  // --- Request a phone-number pairing code (alternative to QR scan) ---
+  async requestPairingCode(phoneNumber) {
+    if (!this.sock) throw new Error('Bot socket is not active. Activate the bot first.');
+    const conn = this.state.connection;
+    if (conn === 'connected') throw new Error('Bot is already connected.');
+    if (conn === 'stopped' || conn === 'logged_out') throw new Error('Bot is not active. Activate it first.');
+
+    // Baileys expects digits only, no '+' or spaces
+    const digits = String(phoneNumber).replace(/\D/g, '');
+    if (!digits || digits.length < 8) throw new Error('A valid phone number is required.');
+
+    // Small delay to ensure the socket is ready to accept the request
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const code = await this.sock.requestPairingCode(digits);
+      this.state.pairingCode = code || null;
+      this.addLog('pairing_code', { details: `Pairing code requested for +${digits}` });
+      console.log(`🔑 ${this.id}: Pairing code generated for +${digits}: ${code}`);
+      return code;
+    } catch (e) {
+      console.error(`❌ ${this.id} pairing code error:`, e.message);
+      throw new Error('Failed to generate pairing code. Make sure the bot is connecting and try again.');
+    }
+  }
 
   updateSettings(newSettings) {
     if (typeof newSettings.antiLink === 'boolean') this.state.settings.antiLink = newSettings.antiLink;

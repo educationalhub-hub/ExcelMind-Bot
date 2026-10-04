@@ -168,12 +168,37 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
         <div class="card">
           <h2 id="connect-title">Link WhatsApp</h2>
           <div id="wa-connect">
-            <div class="qr-area" id="qr-area"><div class="qr-placeholder">Waiting for QR code...</div></div>
-            <ol style="margin:12px 0 0;padding-left:24px;color:var(--muted);font-size:14px">
-              <li>Open WhatsApp on your phone</li>
-              <li>Go to Settings → Linked Devices</li>
-              <li>Tap "Link a Device" and scan the QR code above</li>
-            </ol>
+            <div style="margin-bottom:16px">
+              <div style="display:flex;gap:8px;margin-bottom:12px">
+                <button class="btn btn-primary btn-sm" id="method-qr-btn" onclick="switchPairMethod('qr')">📱 QR Code</button>
+                <button class="btn btn-outline btn-sm" id="method-code-btn" onclick="switchPairMethod('code')">🔑 Pairing Code</button>
+              </div>
+            </div>
+            <div id="pair-qr-view">
+              <div class="qr-area" id="qr-area"><div class="qr-placeholder">Waiting for QR code...</div></div>
+              <ol style="margin:12px 0 0;padding-left:24px;color:var(--muted);font-size:14px">
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to Settings → Linked Devices</li>
+                <li>Tap "Link a Device" and scan the QR code above</li>
+              </ol>
+            </div>
+            <div id="pair-code-view" hidden>
+              <div class="qr-area" id="pairing-code-area">
+                <div class="qr-placeholder" id="pairing-code-placeholder">
+                  Enter your phone number and click "Get Pairing Code" to receive an 8-digit code.
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:12px">
+                <label>Phone Number (with country code, e.g. 2349111234567)</label>
+                <input type="tel" id="pairing-phone" placeholder="2349111234567">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="requestPairingCode()" id="get-code-btn">Get Pairing Code</button>
+              <ol style="margin:12px 0 0;padding-left:24px;color:var(--muted);font-size:14px">
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to Settings → Linked Devices</li>
+                <li>Tap "Link with phone number" and enter the code above</li>
+              </ol>
+            </div>
           </div>
           <div id="tg-connect" hidden>
             <div style="padding:20px;text-align:center;color:var(--muted)">
@@ -1118,6 +1143,7 @@ async function refreshBot(){
   }catch{}
 }
 function updateStatusUI(data){
+  currentBotData=data;
   const conn=data.connection;
   const label={connected:'✅ Connected',connecting:'🔄 Connecting...',scan:'📱 Scan QR',reconnecting:'🔄 Reconnecting...',logged_out:'🚪 Logged out',stopped:'⏸️ Stopped',waiting:'⏳ Waiting',error:'❌ Error'}[conn]||conn;
   document.getElementById('detail-status').innerHTML=`<span class="badge s-${conn}">${label}</span>`;
@@ -1129,11 +1155,23 @@ function updateStatusUI(data){
   document.getElementById('refresh-btn').hidden=isTelegram;
 
   if(!isTelegram){
+    // QR code view
     const qrArea=document.getElementById('qr-area');
     if(data.qr)qrArea.innerHTML=`<img id="qr-img" src="${data.qr}" alt="QR Code">`;
     else if(conn==='connected')qrArea.innerHTML=`<div class="qr-placeholder">✅ Bot is connected as +${(data.botNumber||'').split('@')[0].split(':')[0]}<br>No QR needed.</div>`;
     else if(conn==='stopped')qrArea.innerHTML=`<div class="qr-placeholder">⏸️ Bot is deactivated. Click Activate to start.</div>`;
     else qrArea.innerHTML=`<div class="qr-placeholder">Waiting for QR code...</div>`;
+    // Pairing code view
+    const codeArea=document.getElementById('pairing-code-area');
+    if(data.pairingCode){
+      codeArea.innerHTML=`<div style="text-align:center;padding:20px"><div style="font-size:13px;color:var(--muted);margin-bottom:8px">Your pairing code:</div><div style="font-size:32px;font-weight:700;letter-spacing:6px;color:var(--primary)">${data.pairingCode}</div><div style="font-size:13px;color:var(--muted);margin-top:8px">Enter this code in WhatsApp → Linked Devices → Link with phone number</div></div>`;
+    } else if(conn==='connected'){
+      codeArea.innerHTML=`<div class="qr-placeholder">✅ Bot is connected as +${(data.botNumber||'').split('@')[0].split(':')[0]}<br>No pairing needed.</div>`;
+    } else if(conn==='stopped'){
+      codeArea.innerHTML=`<div class="qr-placeholder">⏸️ Bot is deactivated. Click Activate to start.</div>`;
+    } else {
+      codeArea.innerHTML=`<div class="qr-placeholder" id="pairing-code-placeholder">Enter your phone number and click "Get Pairing Code" to receive an 8-digit code.</div>`;
+    }
   } else {
     const tgConnect=document.getElementById('tg-connect');
     if(conn==='connected')tgConnect.innerHTML=`<div style="padding:20px;text-align:center"><p>✅ Connected as <strong>@${data.botNumber||'bot'}</strong></p><p style="font-size:13px;color:var(--muted);margin-top:8px">Your Telegram bot is active and monitoring groups.</p></div>`;
@@ -1146,6 +1184,39 @@ function updateStatusUI(data){
 }
 async function activateBot(){await fetch(`/api/bots/${currentBotId}/activate`,{method:'POST'});refreshBot();}
 async function deactivateBot(){await fetch(`/api/bots/${currentBotId}/deactivate`,{method:'POST'});refreshBot();}
+
+// --- Pairing method switching (QR vs pairing code) ---
+let pairMethod='qr';
+function switchPairMethod(method){
+  pairMethod=method;
+  document.getElementById('pair-qr-view').hidden=method!=='qr';
+  document.getElementById('pair-code-view').hidden=method!=='code';
+  document.getElementById('method-qr-btn').className='btn btn-primary btn-sm';
+  document.getElementById('method-code-btn').className='btn btn-outline btn-sm';
+  if(method==='code'){
+    document.getElementById('method-qr-btn').className='btn btn-outline btn-sm';
+    document.getElementById('method-code-btn').className='btn btn-primary btn-sm';
+    // Pre-fill phone number from bot data
+    if(!document.getElementById('pairing-phone').value&&currentBotData?.number){
+      document.getElementById('pairing-phone').value=currentBotData.number;
+    }
+  }
+}
+let currentBotData=null;
+async function requestPairingCode(){
+  const phone=document.getElementById('pairing-phone').value.trim().replace(/\D/g,'');
+  if(!phone){alert('Please enter your phone number with country code (e.g. 2349111234567)');return;}
+  const btn=document.getElementById('get-code-btn');
+  btn.disabled=true;btn.textContent='Getting code...';
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/pairing-code`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phoneNumber:phone})});
+    const data=await res.json();
+    if(data.error){alert(data.error);return;}
+    const codeArea=document.getElementById('pairing-code-area');
+    codeArea.innerHTML=`<div style="text-align:center;padding:20px"><div style="font-size:13px;color:var(--muted);margin-bottom:8px">Your pairing code:</div><div style="font-size:32px;font-weight:700;letter-spacing:6px;color:var(--primary)">${data.code}</div><div style="font-size:13px;color:var(--muted);margin-top:8px">Enter this code in WhatsApp → Linked Devices → Link with phone number</div></div>`;
+  }catch(e){alert('Failed to get pairing code. Make sure the bot is active and connecting.');}
+  finally{btn.disabled=false;btn.textContent='Get Pairing Code';}
+}
 async function logoutBot(){
   if(!confirm('Logout and clear session? You will need to reconnect.'))return;
   await fetch(`/api/bots/${currentBotId}/logout`,{method:'POST'});refreshBot();
