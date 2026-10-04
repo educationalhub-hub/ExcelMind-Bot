@@ -10,6 +10,8 @@ export const pool = new Pool({
 export async function migrate() {
   const client = await pool.connect();
   try {
+    await client.query('BEGIN');
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id            SERIAL PRIMARY KEY,
@@ -122,7 +124,11 @@ export async function migrate() {
       await client.query("UPDATE users SET role = 'founder' WHERE id = $1", [firstUser.rows[0].id]);
     }
 
+    await client.query('COMMIT');
     console.log('✅ Database migrations complete');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
