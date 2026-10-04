@@ -614,9 +614,10 @@ export function createApp(botManager) {
   botApi.post('/bots/:botId/group-settings', async (req, res) => {
     const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
     if (!bot) return res.status(404).json({ error: 'Bot not found' });
-    const { jid, moderation } = req.body || {};
-    if (!jid || typeof moderation !== 'boolean') return res.status(400).json({ error: 'jid and moderation required' });
-    bot.updateGroupSetting(jid, moderation);
+    const { jid, ...settings } = req.body || {};
+    if (!jid) return res.status(400).json({ error: 'jid required' });
+    bot.updateGroupSetting(jid, settings);
+    bot.addLog('group_settings_updated', { groupJid: jid, details: 'Per-group settings updated' });
     res.json(bot.state.groupSettings);
   });
 

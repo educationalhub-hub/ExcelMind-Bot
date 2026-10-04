@@ -102,8 +102,9 @@ export class TelegramBotInstance {
     }
   }
 
-  updateGroupSetting(jid, moderation) {
-    this.state.groupSettings[jid] = { moderation };
+  updateGroupSetting(jid, settings) {
+    if (!this.state.groupSettings[jid]) this.state.groupSettings[jid] = { moderation: true };
+    Object.assign(this.state.groupSettings[jid], settings);
   }
 
   getGroupSetting(jid) {
@@ -376,35 +377,33 @@ export class TelegramBotInstance {
     const mm = now.getMinutes().toString().padStart(2, '0');
     const hhmm = `${hh}:${mm}`;
     const today = now.toDateString();
-
-    const { openTime, closeTime, morningTime, morningMessage } = this.state.schedules;
     const adminGroups = this.state.groups.filter((g) => g.isAdmin);
 
-    if (this.capabilities.announcements && morningTime === hhmm && this.lastScheduleRun.morning !== today) {
-      this.lastScheduleRun.morning = today;
-      if (morningMessage) {
-        for (const group of adminGroups) {
-          try { await this.bot.sendMessage(group.jid, morningMessage); } catch (e) { /* ignore */ }
-        }
-        this.addLog('morning_message', { details: `Sent to ${adminGroups.length} group(s)` });
+    for (const group of adminGroups) {
+      const gs = this.getGroupSetting(group.jid);
+      const runKey = (act) => `${group.jid}:${act}`;
+      const alreadyRun = (act) => this.lastScheduleRun[runKey(act)] === today;
+
+      if (this.capabilities.announcements && gs.morningTime && gs.morningTime === hhmm && gs.morningMessage && !alreadyRun('morning')) {
+        this.lastScheduleRun[runKey('morning')] = today;
+        try { await this.bot.sendMessage(group.jid, gs.morningMessage); } catch (e) { /* ignore */ }
+        this.addLog('morning_message', { group: group.name, groupJid: group.jid, details: 'Morning message sent' });
       }
-    }
 
-    if (this.capabilities.announcements && openTime === hhmm && this.lastScheduleRun.open !== today) {
-      this.lastScheduleRun.open = today;
-      for (const group of adminGroups) { await this.unlockGroup(group.jid); }
-      this.addLog('groups_opened', { details: `Opened ${adminGroups.length} group(s)` });
-    }
+      if (this.capabilities.announcements && gs.openTime && gs.openTime === hhmm && !alreadyRun('open')) {
+        this.lastScheduleRun[runKey('open')] = today;
+        await this.unlockGroup(group.jid);
+      }
 
-    if (this.capabilities.announcements && closeTime === hhmm && this.lastScheduleRun.close !== today) {
-      this.lastScheduleRun.close = today;
-      for (const group of adminGroups) { await this.lockGroup(group.jid); }
-      this.addLog('groups_closed', { details: `Closed ${adminGroups.length} group(s)` });
-    }
+      if (this.capabilities.announcements && gs.closeTime && gs.closeTime === hhmm && !alreadyRun('close')) {
+        this.lastScheduleRun[runKey('close')] = today;
+        await this.lockGroup(group.jid);
+      }
 
-    if (this.capabilities.quiz && this.quizState.quizTime === hhmm && this.lastScheduleRun.quiz !== today) {
-      this.lastScheduleRun.quiz = today;
-      for (const group of adminGroups) { await this.sendQuiz(group.jid); }
+      if (this.capabilities.quiz && gs.quizEnabled && gs.quizTime && gs.quizTime === hhmm && !alreadyRun('quiz')) {
+        this.lastScheduleRun[runKey('quiz')] = today;
+        await this.sendQuiz(group.jid);
+      }
     }
   }
 

@@ -454,6 +454,37 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
   </div>
 </div>
 
+<!-- Group Settings Modal -->
+<div class="modal-overlay" id="group-modal" hidden onclick="if(event.target===this)hideGroupModal()">
+  <div class="modal" style="max-width:520px">
+    <h2 style="margin-bottom:4px" id="group-modal-title">Group Settings</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px" id="group-modal-subtitle"></p>
+    <div class="form-group">
+      <label><input type="checkbox" id="grp-moderation" style="width:auto;margin-right:8px"> Moderation (delete links & abuse from non-admins)</label>
+    </div>
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+    <h3 style="font-size:15px;margin-bottom:12px">📅 Schedule (per group)</h3>
+    <div class="form-group"><label>Open Time (unlock group)</label><input type="time" id="grp-openTime"></div>
+    <div class="form-group"><label>Close Time (lock group)</label><input type="time" id="grp-closeTime"></div>
+    <div class="form-group"><label>Morning Message Time</label><input type="time" id="grp-morningTime"></div>
+    <div class="form-group"><label>Morning Message</label><textarea id="grp-morningMessage" placeholder="Good morning everyone!"></textarea></div>
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+    <h3 style="font-size:15px;margin-bottom:12px">📝 Quiz (per group)</h3>
+    <div class="form-group"><label><input type="checkbox" id="grp-quizEnabled" style="width:auto;margin-right:8px"> Enable quiz for this group</label></div>
+    <div class="form-group"><label>Quiz Time</label><input type="time" id="grp-quizTime"></div>
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+    <h3 style="font-size:15px;margin-bottom:12px">💬 Send Message to This Group</h3>
+    <div class="form-group"><label>Message</label><textarea id="grp-msg" placeholder="Type a message to send to this group now..."></textarea></div>
+    <button class="btn btn-outline btn-sm" style="margin-bottom:16px" onclick="sendGroupMessage()">Send Now</button>
+    <div id="grp-msg-status" style="font-size:13px;margin-bottom:12px"></div>
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+    <div style="display:flex;gap:12px;margin-top:16px">
+      <button class="btn btn-outline btn-sm" style="flex:1" onclick="hideGroupModal()">Close</button>
+      <button class="btn btn-primary" style="flex:2" onclick="saveGroupSettings()">Save Group Settings</button>
+    </div>
+  </div>
+</div>
+
 <!-- Create Bot Modal -->
 <div class="modal-overlay" id="create-modal" hidden onclick="if(event.target===this)hideCreateModal()">
   <div class="modal">
@@ -777,6 +808,7 @@ async function logoutBot(){
 
 // --- Groups ---
 let groupSettingsCache={};
+let currentGroupJid=null;
 async function loadGroups(){
   try{
     const [groupsRes,settingsRes]=await Promise.all([
@@ -792,28 +824,29 @@ async function loadGroups(){
     }
     const adminGroups=groups.filter(g=>g.isAdmin);
     const otherGroups=groups.filter(g=>!g.isAdmin);
-    // Admin groups with moderation toggle + lock/unlock
+    // Admin groups — clickable to open per-group settings
     if(!adminGroups.length){
       document.getElementById('group-admin-list').innerHTML='<div class="qr-placeholder">The bot is not an admin in any group. Add it as admin to enable moderation.</div>';
     } else {
       document.getElementById('group-admin-list').innerHTML=adminGroups.map(g=>{
         const setting=groupSettingsCache[g.jid]||{moderation:true};
         const modOn=setting.moderation!==false;
-        return `<div class="group-item">
+        const hasSched=setting.openTime||setting.closeTime||setting.morningTime;
+        const hasQuiz=setting.quizEnabled;
+        const tags=[];
+        if(modOn)tags.push('<span style="font-size:11px;background:#d1fae5;color:#065f46;padding:1px 6px;border-radius:4px">Mod</span>');
+        if(hasSched)tags.push('<span style="font-size:11px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:4px">Sched</span>');
+        if(hasQuiz)tags.push('<span style="font-size:11px;background:#eef2ff;color:#4f46e5;padding:1px 6px;border-radius:4px">Quiz</span>');
+        return `<div class="group-item" style="cursor:pointer" onclick="openGroupSettings('${g.jid}','${g.name.replace(/'/g,"\\'")}')" >
           <div>
             <div class="group-name">${g.name} <span class="admin-badge">Admin</span></div>
-            <div class="group-meta">${g.participants} members</div>
+            <div class="group-meta">${g.participants} members ${tags.join(' ')||'<span style="font-size:11px;color:var(--muted)">No activities set — click to configure</span>'}</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="checkbox" ${modOn?'checked':''} onchange="toggleGroupMod('${g.jid}',this.checked)" style="width:auto"> Moderation
-            </label>
-            <button class="btn btn-outline btn-sm" onclick="toggleLock('${g.jid}')">Lock/Unlock</button>
-          </div>
+          <div style="font-size:13px;color:var(--primary)">⚙️ Settings</div>
         </div>`;
       }).join('');
     }
-    // Other groups (no controls)
+    // Other groups (not admin — no controls)
     if(!otherGroups.length){
       document.getElementById('group-other-list').innerHTML='<div class="qr-placeholder" style="padding:12px">No other groups.</div>';
     } else {
@@ -821,9 +854,52 @@ async function loadGroups(){
     }
   }catch{}
 }
-async function toggleGroupMod(jid,moderation){
-  await fetch(`/api/bots/${currentBotId}/group-settings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jid,moderation})});
-  groupSettingsCache[jid]={moderation};
+function openGroupSettings(jid,name){
+  currentGroupJid=jid;
+  const s=groupSettingsCache[jid]||{moderation:true};
+  document.getElementById('group-modal-title').textContent=name;
+  document.getElementById('group-modal-subtitle').textContent=jid;
+  document.getElementById('grp-moderation').checked=s.moderation!==false;
+  document.getElementById('grp-openTime').value=s.openTime||'';
+  document.getElementById('grp-closeTime').value=s.closeTime||'';
+  document.getElementById('grp-morningTime').value=s.morningTime||'';
+  document.getElementById('grp-morningMessage').value=s.morningMessage||'';
+  document.getElementById('grp-quizEnabled').checked=!!s.quizEnabled;
+  document.getElementById('grp-quizTime').value=s.quizTime||'';
+  document.getElementById('grp-msg').value='';
+  document.getElementById('grp-msg-status').textContent='';
+  document.getElementById('group-modal').hidden=false;
+}
+function hideGroupModal(){document.getElementById('group-modal').hidden=true;currentGroupJid=null;}
+async function saveGroupSettings(){
+  if(!currentGroupJid)return;
+  const settings={
+    jid:currentGroupJid,
+    moderation:document.getElementById('grp-moderation').checked,
+    openTime:document.getElementById('grp-openTime').value||null,
+    closeTime:document.getElementById('grp-closeTime').value||null,
+    morningTime:document.getElementById('grp-morningTime').value||null,
+    morningMessage:document.getElementById('grp-morningMessage').value||null,
+    quizEnabled:document.getElementById('grp-quizEnabled').checked,
+    quizTime:document.getElementById('grp-quizTime').value||null,
+  };
+  await fetch(`/api/bots/${currentBotId}/group-settings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});
+  groupSettingsCache[currentGroupJid]={...groupSettingsCache[currentGroupJid],...settings};
+  delete groupSettingsCache[currentGroupJid].jid;
+  hideGroupModal();
+  loadGroups();
+  alert('Group settings saved!');
+}
+async function sendGroupMessage(){
+  if(!currentGroupJid)return;
+  const msg=document.getElementById('grp-msg').value.trim();
+  if(!msg){document.getElementById('grp-msg-status').textContent='Type a message first.';return;}
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/instruction`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,groupJid:currentGroupJid})});
+    const data=await res.json();
+    if(data.error){document.getElementById('grp-msg-status').textContent='❌ '+data.error;}
+    else{document.getElementById('grp-msg-status').textContent='✅ Message sent!';document.getElementById('grp-msg').value='';}
+  }catch(e){document.getElementById('grp-msg-status').textContent='❌ Failed to send.';}
 }
 async function refreshGroups(){await fetch(`/api/bots/${currentBotId}/groups/refresh`,{method:'POST'});loadGroups();}
 async function toggleLock(jid){if(confirm('Lock this group (admins only)?'))await fetch(`/api/bots/${currentBotId}/lock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid:jid})});else await fetch(`/api/bots/${currentBotId}/unlock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid:jid})});}

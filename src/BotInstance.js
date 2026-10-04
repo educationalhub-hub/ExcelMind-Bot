@@ -154,9 +154,9 @@ export class BotInstance {
     }
   }
 
-  updateGroupSetting(jid, moderation) {
+  updateGroupSetting(jid, settings) {
     if (!this.state.groupSettings[jid]) this.state.groupSettings[jid] = { moderation: true };
-    this.state.groupSettings[jid].moderation = moderation;
+    Object.assign(this.state.groupSettings[jid], settings);
   }
 
   getGroupSetting(jid) {
@@ -468,56 +468,47 @@ export class BotInstance {
     const mm = now.getMinutes().toString().padStart(2, '0');
     const hhmm = `${hh}:${mm}`;
     const today = now.toDateString();
-
-    const { openTime, closeTime, morningTime, morningMessage } = this.state.schedules;
     const adminGroups = this.state.groups.filter((g) => g.isAdmin);
 
-    // Morning message (requires announcements capability)
-    if (this.capabilities.announcements && morningTime && morningTime === hhmm && this.lastScheduleRun.morning !== today) {
-      this.lastScheduleRun.morning = today;
-      if (morningMessage) {
-        for (const group of adminGroups) {
-          try {
-            await this.sock.sendMessage(group.jid, { text: morningMessage });
-          } catch (e) { console.error(`❌ ${this.id} morning msg error:`, e.message); }
-        }
-        this.addLog('morning_message', { details: `Sent to ${adminGroups.length} group(s)` });
-        console.log(`🌅 ${this.id}: Morning message sent to ${adminGroups.length} group(s)`);
-      }
-    }
+    for (const group of adminGroups) {
+      const gs = this.getGroupSetting(group.jid);
+      const runKey = (act) => `${group.jid}:${act}`;
+      const alreadyRun = (act) => this.lastScheduleRun[runKey(act)] === today;
 
-    // Open groups (requires announcements capability)
-    if (this.capabilities.announcements && openTime && openTime === hhmm && this.lastScheduleRun.open !== today) {
-      this.lastScheduleRun.open = today;
-      for (const group of adminGroups) {
+      // Morning message (per-group)
+      if (this.capabilities.announcements && gs.morningTime && gs.morningTime === hhmm && gs.morningMessage && !alreadyRun('morning')) {
+        this.lastScheduleRun[runKey('morning')] = today;
+        try {
+          await this.sock.sendMessage(group.jid, { text: gs.morningMessage });
+          this.addLog('morning_message', { group: group.name, groupJid: group.jid, details: 'Morning message sent' });
+        } catch (e) { console.error(`❌ ${this.id} morning msg error:`, e.message); }
+      }
+
+      // Open group (per-group)
+      if (this.capabilities.announcements && gs.openTime && gs.openTime === hhmm && !alreadyRun('open')) {
+        this.lastScheduleRun[runKey('open')] = today;
         try {
           await this.sock.groupSettingUpdate(group.jid, 'not_announcement');
+          this.addLog('groups_opened', { group: group.name, groupJid: group.jid, details: 'Group opened' });
         } catch (e) { console.error(`❌ ${this.id} unlock error:`, e.message); }
       }
-      this.addLog('groups_opened', { details: `Opened ${adminGroups.length} group(s)` });
-      console.log(`🔓 ${this.id}: Opened ${adminGroups.length} group(s)`);
-    }
 
-    // Close groups (requires announcements capability)
-    if (this.capabilities.announcements && closeTime && closeTime === hhmm && this.lastScheduleRun.close !== today) {
-      this.lastScheduleRun.close = today;
-      for (const group of adminGroups) {
+      // Close group (per-group)
+      if (this.capabilities.announcements && gs.closeTime && gs.closeTime === hhmm && !alreadyRun('close')) {
+        this.lastScheduleRun[runKey('close')] = today;
         try {
           await this.sock.groupSettingUpdate(group.jid, 'announcement');
+          this.addLog('groups_closed', { group: group.name, groupJid: group.jid, details: 'Group closed' });
         } catch (e) { console.error(`❌ ${this.id} lock error:`, e.message); }
       }
-      this.addLog('groups_closed', { details: `Closed ${adminGroups.length} group(s)` });
-      console.log(`🔒 ${this.id}: Closed ${adminGroups.length} group(s)`);
-    }
 
-    // Quiz — only if quiz capability is enabled
-    if (this.capabilities.quiz && this.quizState.quizTime === hhmm && this.lastScheduleRun.quiz !== today) {
-      this.lastScheduleRun.quiz = today;
-      for (const group of adminGroups) {
+      // Quiz (per-group)
+      if (this.capabilities.quiz && gs.quizEnabled && gs.quizTime && gs.quizTime === hhmm && !alreadyRun('quiz')) {
+        this.lastScheduleRun[runKey('quiz')] = today;
         await this.sendQuiz(group.jid);
-      }
-      if (this.quizState.quizzesSent >= QUIZZES_BEFORE_RESULTS) {
-        await this.sendQuizResults();
+        if (this.quizState.quizzesSent >= QUIZZES_BEFORE_RESULTS) {
+          await this.sendQuizResults();
+        }
       }
     }
   }
