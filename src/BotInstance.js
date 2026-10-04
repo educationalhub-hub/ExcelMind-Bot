@@ -12,6 +12,7 @@ import {
   containsAbuse,
 } from './antiLink.js';
 import { config } from './config.js';
+import { pool } from './db.js';
 import {
   getQuizQuestion,
   createQuizState,
@@ -41,8 +42,9 @@ function getDefaultCapabilities(number, role) {
 }
 
 export class BotInstance {
-  constructor({ id, number, displayName, role, authDir, capabilities, active }) {
+  constructor({ id, number, displayName, role, authDir, capabilities, active, userId }) {
     this.id = id;
+    this.userId = userId || null;
     this.number = number;
     this.displayName = displayName;
     this.role = role || 'Moderator';
@@ -162,6 +164,39 @@ export class BotInstance {
   getGroupSetting(jid) {
     if (!this.state.groupSettings[jid]) return { moderation: true };
     return this.state.groupSettings[jid];
+  }
+
+  // --- Message credit tracking ---
+  async checkMessageCredit() {
+    if (!this.userId) return { allowed: true, unlimited: true };
+    try {
+      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at FROM users WHERE id = $1', [this.userId]);
+      if (!result.rows.length) return { allowed: true, unlimited: true };
+      const user = result.rows[0];
+      // Founder/admin: unlimited
+      if (user.role === 'founder' || user.role === 'admin') return { allowed: true, unlimited: true };
+      // Monthly reset: if reset date is from a previous month, reset counter
+      const resetDate = new Date(user.messages_reset_at);
+      const now = new Date();
+      if (resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear()) {
+        await pool.query('UPDATE users SET messages_used = 0, messages_reset_at = CURRENT_DATE WHERE id = $1', [this.userId]);
+        user.messages_used = 0;
+      }
+      const limit = config.messageLimits[user.plan] ?? config.messageLimits.free;
+      const used = user.messages_used || 0;
+      if (used >= limit) return { allowed: false, limit, used, remaining: 0 };
+      return { allowed: true, limit, used, remaining: limit - used };
+    } catch (e) {
+      console.error(`❌ ${this.id} credit check error:`, e.message);
+      return { allowed: true, unlimited: true }; // fail open
+    }
+  }
+
+  async useMessageCredit() {
+    if (!this.userId) return;
+    try {
+      await pool.query('UPDATE users SET messages_used = messages_used + 1 WHERE id = $1', [this.userId]);
+    } catch (e) { /* ignore */ }
   }
 
   addMutedUser(groupJid, senderJid, durationMs) {
@@ -432,18 +467,32 @@ export class BotInstance {
 
   // --- Send instruction ---
   async sendInstruction(groupJid, message) {
+    const credit = await this.checkMessageCredit();
+    if (!credit.allowed) {
+      this.addLog('credit_exhausted', { details: `Message limit reached (${credit.used}/${credit.limit}). Upgrade your plan.` });
+      throw new Error('Message limit reached. Upgrade your plan to send more messages.');
+    }
     if (groupJid === 'all') {
       const adminGroups = this.state.groups.filter((g) => g.isAdmin);
+      let sent = 0;
       for (const group of adminGroups) {
+        const c = await this.checkMessageCredit();
+        if (!c.allowed) {
+          this.addLog('credit_exhausted', { details: `Stopped at ${sent}/${adminGroups.length} groups — limit reached` });
+          break;
+        }
         await this.sock.sendMessage(group.jid, { text: message });
+        await this.useMessageCredit();
+        sent++;
       }
       this.addLog('instruction_broadcast', {
-        group: `All admin groups (${adminGroups.length})`,
+        group: `All admin groups (${sent}/${adminGroups.length})`,
         content: message.slice(0, 100),
       });
-      return adminGroups.length;
+      return sent;
     }
     await this.sock.sendMessage(groupJid, { text: message });
+    await this.useMessageCredit();
     const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
     this.addLog('instruction_sent', { group: groupName, content: message.slice(0, 100) });
     return 1;
@@ -478,10 +527,16 @@ export class BotInstance {
       // Morning message (per-group)
       if (this.capabilities.announcements && gs.morningTime && gs.morningTime === hhmm && gs.morningMessage && !alreadyRun('morning')) {
         this.lastScheduleRun[runKey('morning')] = today;
-        try {
-          await this.sock.sendMessage(group.jid, { text: gs.morningMessage });
-          this.addLog('morning_message', { group: group.name, groupJid: group.jid, details: 'Morning message sent' });
-        } catch (e) { console.error(`❌ ${this.id} morning msg error:`, e.message); }
+        const credit = await this.checkMessageCredit();
+        if (!credit.allowed) {
+          this.addLog('credit_exhausted', { group: group.name, groupJid: group.jid, details: 'Morning message skipped — limit reached' });
+        } else {
+          try {
+            await this.sock.sendMessage(group.jid, { text: gs.morningMessage });
+            await this.useMessageCredit();
+            this.addLog('morning_message', { group: group.name, groupJid: group.jid, details: 'Morning message sent' });
+          } catch (e) { console.error(`❌ ${this.id} morning msg error:`, e.message); }
+        }
       }
 
       // Open group (per-group)
@@ -515,6 +570,11 @@ export class BotInstance {
 
   // --- Quiz: send a question as a WhatsApp poll ---
   async sendQuiz(groupJid) {
+    const credit = await this.checkMessageCredit();
+    if (!credit.allowed) {
+      this.addLog('credit_exhausted', { details: `Quiz not sent — message limit reached (${credit.used}/${credit.limit})` });
+      return;
+    }
     const q = getQuizQuestion(this.quizState.quizIndex);
     this.quizState.quizIndex++;
     try {
@@ -534,6 +594,7 @@ export class BotInstance {
         };
       }
       this.quizState.quizzesSent++;
+      await this.useMessageCredit();
       this.addLog('quiz_sent', { group: groupJid, details: `Quiz #${this.quizState.quizzesSent}: ${q.question.slice(0, 60)}` });
       console.log(`📝 ${this.id}: Quiz #${this.quizState.quizzesSent} sent to ${groupJid}`);
     } catch (e) {

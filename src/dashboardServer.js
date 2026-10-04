@@ -11,6 +11,7 @@ import { pool } from './db.js';
 async function sendHtml(res, file) {
   try {
     const page = await readFile(new URL(file, import.meta.url));
+    res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.type('html').send(page);
   } catch {
     res.status(500).send('Page unavailable');
@@ -384,7 +385,45 @@ export function createApp(botManager) {
     }
   });
 
+  // Reset a user's message credits (admin only)
+  adminApi.put('/users/:id/reset-credits', async (req, res) => {
+    try {
+      await pool.query('UPDATE users SET messages_used = 0, messages_reset_at = CURRENT_DATE WHERE id = $1', [req.params.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to reset credits' });
+    }
+  });
+
   app.use('/api/admin', adminApi);
+
+  // --- API: Message credits (behind auth) ---
+  app.get('/api/credits', requireAuth, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT role, plan, messages_used, messages_reset_at FROM users WHERE id = $1', [req.user.id]);
+      if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+      const user = result.rows[0];
+      const unlimited = user.role === 'founder' || user.role === 'admin';
+      const limit = unlimited ? -1 : (config.messageLimits[user.plan] ?? config.messageLimits.free);
+      // Monthly reset check
+      const resetDate = new Date(user.messages_reset_at);
+      const now = new Date();
+      if (!unlimited && (resetDate.getMonth() !== now.getMonth() || resetDate.getFullYear() !== now.getFullYear())) {
+        await pool.query('UPDATE users SET messages_used = 0, messages_reset_at = CURRENT_DATE WHERE id = $1', [req.user.id]);
+        user.messages_used = 0;
+      }
+      res.json({
+        used: user.messages_used || 0,
+        limit,
+        unlimited,
+        plan: user.plan,
+        role: user.role,
+        remaining: unlimited ? -1 : Math.max(0, limit - (user.messages_used || 0)),
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch credits' });
+    }
+  });
 
   // --- API: Bot management (all behind auth) ---
   const botApi = express.Router();

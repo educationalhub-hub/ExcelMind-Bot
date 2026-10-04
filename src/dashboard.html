@@ -131,6 +131,11 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
 
   <!-- ===== BOTS VIEW ===== -->
   <div id="view-bots">
+    <div id="credit-bar" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;font-size:14px">
+      <span>📨 Messages: <strong id="credit-used">0</strong> <span id="credit-limit-text"></span></span>
+      <div style="flex:1;max-width:120px;height:6px;background:#e5e7eb;border-radius:3px;margin:0 12px;overflow:hidden"><div id="credit-bar-fill" style="height:100%;width:0%;background:#6366f1;border-radius:3px;transition:width .3s"></div></div>
+      <span id="credit-remaining" style="font-size:13px;color:var(--muted)"></span>
+    </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h2 style="font-size:18px">Your Bots</h2>
       <button class="btn btn-primary btn-sm" onclick="showCreateModal()">+ New Bot</button>
@@ -548,8 +553,31 @@ async function checkAuth(){
     document.getElementById('user-email').textContent=data.user.email;
     userPlan=data.user.plan||'free';
     if(data.user.role==='admin'||data.user.role==='founder') document.getElementById('admin-tab').hidden=false;
-    loadBots(); loadProfile(); loadPlans();
+    loadBots(); loadProfile(); loadPlans(); loadCredits();
   }catch{window.location.href='/login';}
+}
+
+async function loadCredits(){
+  try{
+    const res=await fetch('/api/credits'); if(!res.ok)return;
+    const c=await res.json();
+    const bar=document.getElementById('credit-bar');
+    if(c.unlimited){
+      bar.style.display='flex';
+      document.getElementById('credit-used').textContent='∞';
+      document.getElementById('credit-limit-text').textContent='(Unlimited — '+c.role+')';
+      document.getElementById('credit-bar-fill').style.width='0%';
+      document.getElementById('credit-remaining').textContent='';
+    }else{
+      bar.style.display='flex';
+      document.getElementById('credit-used').textContent=c.used;
+      document.getElementById('credit-limit-text').textContent='/ '+c.limit+' /month';
+      const pct=Math.min(100,(c.used/c.limit)*100);
+      document.getElementById('credit-bar-fill').style.width=pct+'%';
+      document.getElementById('credit-bar-fill').style.background=pct>=90?'#ef4444':pct>=70?'#f59e0b':'#6366f1';
+      document.getElementById('credit-remaining').textContent=c.remaining+' left';
+    }
+  }catch{}
 }
 
 // --- View switching ---

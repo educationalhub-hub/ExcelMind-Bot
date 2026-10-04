@@ -66,6 +66,8 @@ export async function migrate() {
     // Add columns to existing tables if they don't exist (safe for already-created tables)
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS messages_used INTEGER NOT NULL DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS messages_reset_at DATE NOT NULL DEFAULT CURRENT_DATE`);
     await client.query(`ALTER TABLE bots ADD COLUMN IF NOT EXISTS platform TEXT NOT NULL DEFAULT 'whatsapp'`);
     await client.query(`ALTER TABLE bots ADD COLUMN IF NOT EXISTS telegram_token TEXT`);
 

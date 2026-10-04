@@ -34,6 +34,7 @@ export class BotManager {
   createInstanceFromRow(row) {
     const common = {
       id: row.id,
+      userId: row.user_id,
       displayName: row.display_name,
       role: row.role,
       capabilities: row.capabilities,
@@ -80,7 +81,7 @@ export class BotManager {
       );
 
       const bot = new TelegramBotInstance({
-        id: botId, token: telegramToken, displayName, role: role || 'Moderator', capabilities, active: true,
+        id: botId, userId, token: telegramToken, displayName, role: role || 'Moderator', capabilities, active: true,
       });
       this.bots.set(botId, bot);
       bot.start().catch((e) => console.error(`❌ ${botId} start error:`, e));
@@ -99,7 +100,7 @@ export class BotManager {
     );
 
     const bot = new BotInstance({
-      id: botId, number: phoneNumber, displayName, role: role || 'Moderator', authDir, capabilities, active: true,
+      id: botId, userId, number: phoneNumber, displayName, role: role || 'Moderator', authDir, capabilities, active: true,
     });
     this.bots.set(botId, bot);
     bot.start().catch((e) => console.error(`❌ ${botId} start error:`, e));
