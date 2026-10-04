@@ -118,6 +118,28 @@ export async function migrate() {
       ON CONFLICT (plan_key) DO NOTHING
     `);
 
+    // Capability definitions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS capability_definitions (
+        id          SERIAL PRIMARY KEY,
+        cap_key     TEXT UNIQUE NOT NULL,
+        label       TEXT NOT NULL,
+        description TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+
+      INSERT INTO capability_definitions (cap_key, label, description, sort_order)
+      VALUES
+        ('moderation', 'Moderation (anti-abuse)', 'Delete messages containing abusive or offensive language', 0),
+        ('antiLink', 'Anti-Link', 'Delete links from non-admins and temporarily remove the sender', 1),
+        ('announcements', 'Announcements & Schedules', 'Send scheduled messages, open/close groups automatically', 2),
+        ('quiz', 'Quiz System', 'Send interactive quiz polls to groups', 3),
+        ('greeter', 'Greeter (welcome new members)', 'Welcome new members when they join the group', 4)
+      ON CONFLICT (cap_key) DO NOTHING
+    `);
+
     // The very first user is the founder/admin
     const firstUser = await client.query('SELECT id FROM users ORDER BY id ASC LIMIT 1');
     if (firstUser.rows.length && firstUser.rows[0].id) {

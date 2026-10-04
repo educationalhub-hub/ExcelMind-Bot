@@ -500,6 +500,62 @@ export function createApp(botManager) {
     }
   });
 
+  // --- Capability definitions management (admin only) ---
+  adminApi.get('/capabilities', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM capability_definitions ORDER BY sort_order, id');
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch capabilities' });
+    }
+  });
+
+  adminApi.post('/capabilities', async (req, res) => {
+    const { cap_key, label, description, sort_order } = req.body || {};
+    if (!cap_key || !label) return res.status(400).json({ error: 'Key and label are required' });
+    try {
+      const result = await pool.query(
+        'INSERT INTO capability_definitions (cap_key, label, description, sort_order) VALUES ($1, $2, $3, $4) RETURNING *',
+        [cap_key.trim().toLowerCase(), label.trim(), description || null, sort_order || 0]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      if (err.code === '23505') return res.status(409).json({ error: 'A capability with this key already exists' });
+      res.status(500).json({ error: 'Failed to create capability' });
+    }
+  });
+
+  adminApi.put('/capabilities/:id', async (req, res) => {
+    const { id } = req.params;
+    const { label, description, is_active, sort_order } = req.body || {};
+    try {
+      const setClauses = [];
+      const params = [];
+      let idx = 1;
+      if (label !== undefined) { setClauses.push(`label = $${idx++}`); params.push(label); }
+      if (description !== undefined) { setClauses.push(`description = $${idx++}`); params.push(description); }
+      if (is_active !== undefined) { setClauses.push(`is_active = $${idx++}`); params.push(is_active); }
+      if (sort_order !== undefined) { setClauses.push(`sort_order = $${idx++}`); params.push(sort_order); }
+      if (setClauses.length) {
+        params.push(id);
+        await pool.query(`UPDATE capability_definitions SET ${setClauses.join(', ')} WHERE id = $${idx}`, params);
+      }
+      const result = await pool.query('SELECT * FROM capability_definitions WHERE id = $1', [id]);
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to update capability' });
+    }
+  });
+
+  adminApi.delete('/capabilities/:id', async (req, res) => {
+    try {
+      await pool.query('DELETE FROM capability_definitions WHERE id = $1', [req.params.id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete capability' });
+    }
+  });
+
   // --- Broadcasts management (admin only) ---
   adminApi.get('/broadcasts', async (req, res) => {
     try {
@@ -576,6 +632,16 @@ export function createApp(botManager) {
       });
     } catch (err) {
       res.status(500).json({ error: 'Failed to fetch credits' });
+    }
+  });
+
+  // --- Public capability definitions (for bot creation modal) ---
+  app.get('/api/capabilities', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT cap_key, label, description FROM capability_definitions WHERE is_active = true ORDER BY sort_order');
+      res.json(result.rows);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch capabilities' });
     }
   });
 

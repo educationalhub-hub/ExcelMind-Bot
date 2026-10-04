@@ -400,6 +400,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <button onclick="showAdminView('verifications',this)">💳 Verifications</button>
       <button onclick="showAdminView('plans',this)">📦 Plans & Pricing</button>
       <button onclick="showAdminView('broadcasts',this)">📣 Broadcasts</button>
+      <button onclick="showAdminView('capabilities',this)">🧩 Capabilities</button>
     </div>
 
     <div id="admin-stats">
@@ -470,6 +471,17 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       </div>
     </div>
 
+    <div id="admin-capabilities" hidden>
+      <div class="card">
+        <h2>Capability Definitions <button class="btn btn-primary btn-sm" style="float:right" onclick="showCapabilityModal()">+ Add Capability</button></h2>
+        <p style="color:var(--muted);margin-bottom:16px">Define the feature capabilities that can be toggled on individual bots. As you think of new roles or features, add them here — they'll appear in the bot creation and capabilities panels automatically.</p>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>Key</th><th>Label</th><th>Description</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="capdefs-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
     <div id="admin-broadcasts" hidden>
       <div class="card">
         <h2>Create Broadcast</h2>
@@ -499,6 +511,22 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
     <div style="display:flex;gap:12px;margin-top:20px">
       <button class="btn btn-outline" onclick="hidePlanModal()" style="flex:1">Cancel</button>
       <button class="btn btn-primary" onclick="savePlan()" style="flex:1">Save Plan</button>
+    </div>
+  </div>
+</div>
+
+<!-- Capability Edit Modal -->
+<div class="modal-overlay" id="cap-modal" hidden onclick="if(event.target===this)hideCapabilityModal()">
+  <div class="modal">
+    <h2 style="margin-bottom:20px" id="cap-modal-title">Add Capability</h2>
+    <input type="hidden" id="cap-edit-id">
+    <div class="form-group"><label>Key (unique identifier, e.g. antiSpam)</label><input type="text" id="cap-key" placeholder="antiSpam"></div>
+    <div class="form-group"><label>Display Label</label><input type="text" id="cap-label" placeholder="Anti-Spam"></div>
+    <div class="form-group"><label>Description (optional)</label><textarea id="cap-desc" placeholder="What this capability does..."></textarea></div>
+    <div class="form-group"><label>Sort Order</label><input type="number" id="cap-sort" placeholder="0" value="0"></div>
+    <div style="display:flex;gap:12px;margin-top:20px">
+      <button class="btn btn-outline" onclick="hideCapabilityModal()" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCapability()" style="flex:1">Save</button>
     </div>
   </div>
 </div>
@@ -578,7 +606,14 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
 
 <script>
 let currentBotId=null, pollTimer=null, bots=[], currentUser=null, userPlan='free', currentPlatform='whatsapp';
-const ALL_CAPS=[['moderation','Moderation (anti-abuse)'],['antiLink','Anti-Link'],['announcements','Announcements & Schedules'],['quiz','Quiz System'],['greeter','Greeter (welcome new members)']];
+let ALL_CAPS=[['moderation','Moderation (anti-abuse)'],['antiLink','Anti-Link'],['announcements','Announcements & Schedules'],['quiz','Quiz System'],['greeter','Greeter (welcome new members)']];
+async function loadAllCaps(){
+  try{
+    const res=await fetch('/api/capabilities');if(!res.ok)return;
+    const caps=await res.json();
+    if(caps&&caps.length) ALL_CAPS=caps.map(c=>[c.cap_key,c.label]);
+  }catch{}
+}
 // Capabilities locked by plan tier
 const FREE_LOCKED_CAPS=['antiLink','announcements'];
 function isAdmin(){return currentUser&&(currentUser.role==='admin'||currentUser.role==='founder');}
@@ -597,7 +632,7 @@ async function checkAuth(){
     document.getElementById('user-email').textContent=data.user.email;
     userPlan=data.user.plan||'free';
     if(data.user.role==='admin'||data.user.role==='founder') document.getElementById('admin-tab').hidden=false;
-    loadBots(); loadProfile(); loadPlans(); loadCredits(); loadNotifications();
+    loadAllCaps(); loadBots(); loadProfile(); loadPlans(); loadCredits(); loadNotifications();
   }catch{window.location.href='/login';}
 }
 
@@ -638,7 +673,7 @@ function showView(view,el){
 }
 
 // --- Admin (inline) ---
-function loadAdminView(){loadAdminStats();loadAdminAllBots();loadAdminUsers();loadAdminActivity();loadAdminAnnouncements();loadAdminVerifications();loadAdminPlans();loadAdminBroadcasts();}
+function loadAdminView(){loadAdminStats();loadAdminAllBots();loadAdminUsers();loadAdminActivity();loadAdminAnnouncements();loadAdminVerifications();loadAdminPlans();loadAdminBroadcasts();loadAdminCapabilities();}
 function showAdminView(view,el){
   document.getElementById('admin-stats').hidden=view!=='stats';
   document.getElementById('admin-allbots').hidden=view!=='allbots';
@@ -648,6 +683,7 @@ function showAdminView(view,el){
   document.getElementById('admin-verifications').hidden=view!=='verifications';
   document.getElementById('admin-plans').hidden=view!=='plans';
   document.getElementById('admin-broadcasts').hidden=view!=='broadcasts';
+  document.getElementById('admin-capabilities').hidden=view!=='capabilities';
   document.querySelectorAll('.admin-subnav button').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
   if(view==='stats') loadAdminStats();
@@ -658,6 +694,7 @@ function showAdminView(view,el){
   if(view==='verifications') loadAdminVerifications();
   if(view==='plans') loadAdminPlans();
   if(view==='broadcasts') loadAdminBroadcasts();
+  if(view==='capabilities') loadAdminCapabilities();
 }
 async function loadAdminAllBots(){
   try{
@@ -870,6 +907,73 @@ async function deleteBroadcast(id){
   if(!confirm('Delete this broadcast?'))return;
   await fetch(`/api/admin/broadcasts/${id}`,{method:'DELETE'});
   loadAdminBroadcasts();
+}
+
+// --- Admin: Capability definitions management ---
+async function loadAdminCapabilities(){
+  try{
+    const res=await fetch('/api/admin/capabilities');const caps=await res.json();
+    document.getElementById('capdefs-tbody').innerHTML=caps.map(c=>`<tr>
+      <td><code style="font-size:13px">${c.cap_key}</code></td>
+      <td><strong>${c.label}</strong></td>
+      <td style="font-size:13px;color:var(--muted)">${c.description||'-'}</td>
+      <td><span class="badge ${c.is_active?'badge-active':'badge-inactive'}">${c.is_active?'Active':'Off'}</span></td>
+      <td class="user-actions">
+        <button class="btn btn-outline btn-sm" onclick="editCapability(${c.id})">Edit</button>
+        <button class="btn ${c.is_active?'btn-outline':'btn-success'} btn-sm" onclick="toggleCapability(${c.id},${!c.is_active})">${c.is_active?'Disable':'Enable'}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCapability(${c.id})">Delete</button>
+      </td>
+    </tr>`).join('');
+  }catch{}
+}
+function showCapabilityModal(){
+  document.getElementById('cap-modal-title').textContent='Add Capability';
+  document.getElementById('cap-edit-id').value='';
+  document.getElementById('cap-key').value='';document.getElementById('cap-key').disabled=false;
+  document.getElementById('cap-label').value='';
+  document.getElementById('cap-desc').value='';
+  document.getElementById('cap-sort').value='0';
+  document.getElementById('cap-modal').hidden=false;
+}
+function editCapability(id){
+  fetch('/api/admin/capabilities').then(r=>r.json()).then(caps=>{
+    const c=caps.find(x=>x.id===id);if(!c)return;
+    document.getElementById('cap-modal-title').textContent='Edit Capability';
+    document.getElementById('cap-edit-id').value=c.id;
+    document.getElementById('cap-key').value=c.cap_key;document.getElementById('cap-key').disabled=true;
+    document.getElementById('cap-label').value=c.label;
+    document.getElementById('cap-desc').value=c.description||'';
+    document.getElementById('cap-sort').value=c.sort_order||0;
+    document.getElementById('cap-modal').hidden=false;
+  });
+}
+function hideCapabilityModal(){document.getElementById('cap-modal').hidden=true;}
+async function saveCapability(){
+  const id=document.getElementById('cap-edit-id').value;
+  const data={
+    label:document.getElementById('cap-label').value.trim(),
+    description:document.getElementById('cap-desc').value.trim()||null,
+    sort_order:parseInt(document.getElementById('cap-sort').value)||0,
+  };
+  if(!data.label){alert('Label is required');return;}
+  if(id){
+    await fetch(`/api/admin/capabilities/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  }else{
+    data.cap_key=document.getElementById('cap-key').value.trim().toLowerCase();
+    if(!data.cap_key){alert('Key is required');return;}
+    const res=await fetch('/api/admin/capabilities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const d=await res.json();if(d.error){alert(d.error);return;}
+  }
+  hideCapabilityModal();loadAdminCapabilities();loadAllCaps();
+}
+async function toggleCapability(id,active){
+  await fetch(`/api/admin/capabilities/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({is_active:active})});
+  loadAdminCapabilities();loadAllCaps();
+}
+async function deleteCapability(id){
+  if(!confirm('Delete this capability? Bots that have it enabled will keep it but it will no longer appear in new bot forms.'))return;
+  await fetch(`/api/admin/capabilities/${id}`,{method:'DELETE'});
+  loadAdminCapabilities();loadAllCaps();
 }
 
 // --- Admin: Credit management ---
