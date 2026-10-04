@@ -50,18 +50,21 @@ export function hasNonExemptedLink(text = '', exemptions = []) {
 }
 
 export function isAdmin(participant, groupMetadata) {
-  if (!participant || !groupMetadata) return false;
+  const normalize = (jid) => {
+    if (typeof jid !== 'string' || !jid.includes('@')) return null;
+    const [user, server] = jid.split('@');
+    return `${user.split(':')[0]}@${server === 'c.us' ? 's.whatsapp.net' : server}`;
+  };
+  const aliases = (Array.isArray(participant) ? participant : [participant])
+    .map(normalize).filter(Boolean);
+  if (!aliases.length) return false;
 
-  const participantJid = participant.split('@')[0].split(':')[0];
-
-  const member = groupMetadata.participants.find((p) => {
-    const jid = (p.jid || p.id)?.split('@')[0].split(':')[0];
-    return jid === participantJid;
-  });
-
-  if (!member) return false;
-
-  return member.admin === 'admin' || member.admin === 'superadmin';
+  // WhatsApp may address the same person by phone JID or anonymous LID.
+  // Check every supplied alias, keeping the two namespaces distinct.
+  return (groupMetadata?.participants || []).some((member) =>
+    (member.admin === 'admin' || member.admin === 'superadmin') &&
+    [member.id, member.jid, member.lid].some((jid) => aliases.includes(normalize(jid))),
+  );
 }
 
 export function containsAbuse(text = '', words = []) {

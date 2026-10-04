@@ -1,13 +1,12 @@
 import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
+  normalizeMessageContent,
 } from '@whiskeysockets/baileys';
 import P from 'pino';
 import QRCode from 'qrcode';
 import { rm } from 'node:fs/promises';
 import {
-  containsLink,
-  resetLinkRegex,
   isAdmin,
   containsAbuse,
   hasNonExemptedLink,
@@ -56,6 +55,7 @@ export class BotInstance {
     this.qrRevision = 0;
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
+    this.starting = false;
     this.muteTimers = new Map();
     this.scheduleTimer = null;
     this.lastScheduleRun = {};
@@ -93,7 +93,7 @@ export class BotInstance {
 
   // --- Start / Stop ---
   async activate() {
-    if (this.active) return;
+    if (this.active && (this.sock || this.starting)) return;
     this.active = true;
     this.updateConnection('connecting');
     this.addLog('bot_started', { details: 'Bot activated by user' });
@@ -117,6 +117,7 @@ export class BotInstance {
   }
 
   async logout() {
+    this.active = false;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
     for (const timer of this.muteTimers.values()) clearTimeout(timer);
@@ -266,26 +267,63 @@ export class BotInstance {
 
   // --- Connection ---
   async start() {
-    const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
-    this.sock = makeWASocket({
-      auth: state,
-      logger: P({ level: 'silent' }),
-      printQRInTerminal: false,
-      connectTimeoutMs: 30000,
-      keepAliveIntervalMs: 15000,
-      retryRequestDelayMs: 1000,
-    });
+    if (!this.active || this.starting) return;
+    this.starting = true;
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    const previousSocket = this.sock;
+    this.sock = null;
+    try { previousSocket?.end(); } catch { /* already closed */ }
 
-    this.sock.ev.on('creds.update', saveCreds);
-    this.sock.ev.on('connection.update', (update) => this.handleConnectionUpdate(update));
-    this.sock.ev.on('messages.upsert', ({ messages }) => this.handleMessages(messages));
-    this.sock.ev.on('messages.update', (updates) => this.handlePollUpdates(updates));
-    this.sock.ev.on('group-participants.update', (update) => this.handleParticipantUpdate(update));
-
-    this.startScheduler();
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
+      if (!this.active) return;
+      const socket = makeWASocket({
+        auth: state,
+        logger: P({ level: 'silent' }),
+        printQRInTerminal: false,
+        connectTimeoutMs: 30000,
+        keepAliveIntervalMs: 15000,
+        retryRequestDelayMs: 1000,
+      });
+      this.sock = socket;
+      const isCurrent = () => this.active && this.sock === socket;
+      socket.ev.on('creds.update', () => {
+        if (isCurrent()) saveCreds().catch((error) => console.error(`❌ ${this.id} auth save failed:`, error.message));
+      });
+      socket.ev.on('connection.update', (update) => {
+        this.handleConnectionUpdate(update, socket).catch((error) => console.error(`❌ ${this.id} connection update failed:`, error.message));
+      });
+      socket.ev.on('messages.upsert', ({ messages }) => { if (isCurrent()) this.handleMessages(messages); });
+      socket.ev.on('messages.update', (updates) => { if (isCurrent()) this.handlePollUpdates(updates); });
+      socket.ev.on('group-participants.update', (update) => { if (isCurrent()) this.handleParticipantUpdate(update); });
+      this.startScheduler();
+    } catch (error) {
+      if (this.active) {
+        this.updateConnection('reconnecting');
+        this.addLog('connection_error', { details: `Startup failed: ${error.message}. Retrying automatically.` });
+        this.scheduleReconnect();
+      }
+      throw error;
+    } finally {
+      this.starting = false;
+    }
   }
 
-  async handleConnectionUpdate(update) {
+  scheduleReconnect(statusCode) {
+    if (!this.active || this.reconnectTimer) return;
+    this.reconnectAttempts = Math.min(this.reconnectAttempts + 1, 6);
+    const baseDelay = statusCode === DisconnectReason.timedOut ? 3000 : 5000;
+    const delay = Math.min(baseDelay * 2 ** (this.reconnectAttempts - 1), 80000);
+    console.log(`🔄 ${this.id} reconnecting in ${delay / 1000}s (attempt #${this.reconnectAttempts})...`);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.start().catch((error) => console.error(`❌ ${this.id} restart error:`, error.message));
+    }, delay);
+  }
+
+  async handleConnectionUpdate(update, socket = this.sock) {
+    // A late event from an old socket must not disconnect or restart its replacement.
+    if (!this.active || socket !== this.sock) return;
     const { connection, lastDisconnect, qr, isNewLogin } = update;
 
     if (connection === 'connecting' || isNewLogin) {
@@ -298,35 +336,33 @@ export class BotInstance {
         const image = await QRCode.toDataURL(qr, {
           width: 320, margin: 4, errorCorrectionLevel: 'M',
         });
-        if (this.qrRevision === currentRevision) {
+        if (this.active && socket === this.sock && this.qrRevision === currentRevision) {
           this.updateConnection('scan', image);
           console.log(`📱 Fresh QR for ${this.id} (${this.number})`);
         }
       } catch (error) {
         console.error(`❌ ${this.id} QR generation failed:`, error.message);
-        this.updateConnection('error');
+        if (this.active && socket === this.sock) this.updateConnection('error');
       }
     }
 
     if (connection === 'open') {
       this.reconnectAttempts = 0;
-      this.setBotNumber(this.sock.user?.id);
+      if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+      this.setBotNumber(socket.user?.id);
       this.updateConnection('connected');
+      this.addLog('bot_connected', { details: `Connected as ${socket.user?.id || 'unknown'}` });
       console.log(`✅ ${this.id} (${this.number}) connected to WhatsApp!`);
       try {
         await this.refreshGroups();
-        this.addLog('bot_connected', { details: `Connected as ${this.sock.user?.id || 'unknown'}` });
-
-        if (this.displayName) {
-          const adminGroups = this.state.groups.filter((g) => g.isAdmin);
-          if (adminGroups.length > 0) {
-            try {
-              await this.sock.updateProfileName(this.displayName);
-              this.addLog('profile_name_set', { details: `Profile name set to "${this.displayName}"` });
-              console.log(`🏷️ ${this.id}: Profile name set to "${this.displayName}"`);
-            } catch (error) {
-              console.error(`❌ ${this.id} profile name failed:`, error.message);
-            }
+        if (!this.active || socket !== this.sock) return;
+        if (this.displayName && this.state.groups.some((g) => g.isAdmin)) {
+          try {
+            await socket.updateProfileName(this.displayName);
+            this.addLog('profile_name_set', { details: `Profile name set to "${this.displayName}"` });
+            console.log(`🏷️ ${this.id}: Profile name set to "${this.displayName}"`);
+          } catch (error) {
+            console.error(`❌ ${this.id} profile name failed:`, error.message);
           }
         }
       } catch (error) {
@@ -335,72 +371,42 @@ export class BotInstance {
     }
 
     if (connection === 'close') {
-      if (!this.active) {
-        this.updateConnection('stopped');
-        return;
-      }
+      this.sock = null;
+      this.qrRevision++;
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      this.updateConnection(shouldReconnect ? 'reconnecting' : 'logged_out');
+      const loggedOut = statusCode === DisconnectReason.loggedOut;
+      const replaced = statusCode === DisconnectReason.connectionReplaced;
+      this.updateConnection(loggedOut ? 'logged_out' : replaced ? 'error' : 'reconnecting');
+      this.addLog('bot_disconnected', {
+        details: `WhatsApp disconnected (${statusCode ?? 'unknown'}): ${loggedOut ? 'Scan a new QR to reconnect.' : replaced ? 'Session replaced by another connection. Stop the other instance before activating.' : 'Reconnecting automatically; saved pairing is preserved.'}`,
+      });
       console.log(`❌ ${this.id} connection closed (code: ${statusCode})`);
 
-      if (shouldReconnect) {
-        this.reconnectAttempts++;
-        // After 5 consecutive failures, wipe stale auth — but only for auth
-        // failures (401/440/500), NOT for 408 timeouts which are transient
-        // network issues where the session is still valid.
-        const isAuthFailure =
-          statusCode === 401 ||
-          statusCode === 440 ||
-          statusCode === 500;
-        if (this.reconnectAttempts >= 5 && isAuthFailure) {
-          console.log(`🧹 ${this.id}: ${this.reconnectAttempts} failed attempts — wiping auth for fresh QR`);
-          this.reconnectAttempts = 0;
-          this.qrRevision = 0;
-          try {
-            await rm(this.authDir, { recursive: true, force: true });
-          } catch (e) {
-            console.error(`❌ ${this.id} auth cleanup error:`, e.message);
-          }
-        }
-        // Reset attempt counter on 408 (transient timeout) — session is still valid
-        if (statusCode === 408) this.reconnectAttempts = 0;
-        // Faster backoff for 408 (3s fixed) vs exponential for other errors
-        const delay = statusCode === 408
-          ? 3000
-          : Math.min(5000 * 2 ** (this.reconnectAttempts - 1), 80000);
-        console.log(`🔄 ${this.id} reconnecting in ${delay / 1000}s (attempt #${this.reconnectAttempts})...`);
-        this.reconnectTimer = setTimeout(
-          () => this.start().catch((e) => console.error(`❌ ${this.id} restart error:`, e)),
-          delay,
-        );
-      } else {
-        // Session was logged out on WhatsApp's side — wipe stale auth files
-        // so the next activate() generates a fresh QR instead of retrying dead creds
+      if (loggedOut) {
+        // Only an explicit WhatsApp logout invalidates the saved pairing.
+        // Network timeouts, server errors and competing sessions are not logout.
         this.reconnectAttempts = 0;
-        this.qrRevision = 0;
         try {
           await rm(this.authDir, { recursive: true, force: true });
           console.log(`🧹 ${this.id}: stale auth cleared (was logged out)`);
-        } catch (e) {
-          console.error(`❌ ${this.id} auth cleanup error:`, e.message);
+        } catch (error) {
+          console.error(`❌ ${this.id} auth cleanup error:`, error.message);
         }
+      } else if (!replaced) {
+        this.scheduleReconnect(statusCode);
       }
     }
   }
 
   isBotAdminInGroup(groupMetadata, botJid) {
-    if (!groupMetadata?.participants || !botJid) return false;
-    const botId = botJid.split('@')[0].split(':')[0];
-    const member = groupMetadata.participants.find(
-      (p) => (p.jid || p.id)?.split('@')[0].split(':')[0] === botId,
-    );
-    return member?.admin === 'admin' || member?.admin === 'superadmin';
+    return isAdmin([botJid, this.sock?.user?.lid], groupMetadata);
   }
 
   async refreshGroups() {
     if (!this.sock || this.state.connection !== 'connected') return;
-    const result = await this.sock.groupFetchAllParticipating();
+    const socket = this.sock;
+    const result = await socket.groupFetchAllParticipating();
+    if (!this.active || socket !== this.sock) return;
     const groups = Object.values(result);
     const groupList = groups.map((g) => ({
       jid: g.id,
@@ -423,11 +429,14 @@ export class BotInstance {
   }
 
   async _moderateMessage(message) {
-    if (!message?.message || message.key.fromMe) return;
-    const remoteJid = message.key.remoteJid;
+    const socket = this.sock;
+    if (!this.active || this.state.connection !== 'connected' || !socket) return;
+    if (!message?.message || message.key?.fromMe) return;
+    const remoteJid = message.key?.remoteJid;
     if (!remoteJid?.endsWith('@g.us')) return;
 
-    const msg = message.message;
+    const msg = normalizeMessageContent(message.message);
+    if (!msg) return;
     const contextInfo =
       msg.extendedTextMessage?.contextInfo ||
       msg.imageMessage?.contextInfo ||
@@ -449,18 +458,9 @@ export class BotInstance {
 
     if (!messageText) return;
 
-    const groupMetadata = await this.sock.groupMetadata(remoteJid);
-    const groupName = groupMetadata.subject || remoteJid;
-
-    if (!this.isBotAdminInGroup(groupMetadata, this.sock.user?.id)) return;
-
     const groupSetting = this.getGroupSetting(remoteJid);
     if (!groupSetting.moderation) return;
 
-    const senderJid = message.key.participant || message.participant;
-    if (isAdmin(senderJid, groupMetadata)) return;
-
-    resetLinkRegex();
     const exemptions = this.state.settings.linkExemptions || [];
     const hasLink = this.capabilities.antiLink && this.state.settings.antiLink && hasNonExemptedLink(messageText, exemptions);
     const hasAbuse =
@@ -469,7 +469,19 @@ export class BotInstance {
       containsAbuse(messageText, this.state.settings.abusiveWords);
     if (!hasLink && !hasAbuse) return;
 
-    await this.sock.sendMessage(remoteJid, { delete: message.key });
+    // Fetch permissions only for potential violations, not for every group message.
+    const groupMetadata = await socket.groupMetadata(remoteJid);
+    if (!this.active || socket !== this.sock) return;
+    const groupName = groupMetadata.subject || remoteJid;
+    if (!this.isBotAdminInGroup(groupMetadata, socket.user?.id)) {
+      this.addLog('moderation_skipped', { group: groupName, groupJid: remoteJid, details: 'Bot is not a WhatsApp group admin; it cannot delete other members’ messages.' });
+      return;
+    }
+
+    const senderJid = message.key.participant || message.participant;
+    if (isAdmin(senderJid, groupMetadata)) return;
+
+    await socket.sendMessage(remoteJid, { delete: message.key });
     const reason = hasLink ? 'link' : 'abusive language';
     this.addLog(hasLink ? 'link_deleted' : 'abuse_deleted', {
       group: groupName, groupJid: remoteJid,
@@ -810,12 +822,14 @@ export class BotInstance {
 
   // --- Cleanup ---
   stop() {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (this.scheduleTimer) clearInterval(this.scheduleTimer);
+    this.active = false;
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
     for (const timer of this.muteTimers.values()) clearTimeout(timer);
     this.muteTimers.clear();
-    if (this.sock) {
-      try { this.sock.end(); } catch { /* ignore */ }
-    }
+    const socket = this.sock;
+    this.sock = null;
+    try { socket?.end(); } catch { /* ignore */ }
+    this.updateConnection('stopped');
   }
 }

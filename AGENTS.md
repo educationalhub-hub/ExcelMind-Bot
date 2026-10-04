@@ -10,7 +10,7 @@ docker compose -f docker-compose.base44.yml up -d --build
 
 - Node 22 runtime, source bind-mounted at `/app`.
 - PostgreSQL 16 (Alpine) runs as a `db` compose service with auto-generated credentials.
-- Dependencies installed on startup via `npm install` (lockfile-preserving).
+- The dependency volume is synced from the committed lockfile at container startup via `npm ci`; recreate the bot service after dependency changes.
 - `JWT_SECRET` is auto-generated for development; replace with a real value for production.
 - Stripe keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`) are optional — billing routes return "not configured" without them.
 - Bot runs with `node --watch src/index.js` for live reload on source changes.
@@ -104,8 +104,19 @@ docker compose -f docker-compose.base44.yml logs bot
 
 Success: `✅ Database migrations complete` then `📊 OmniMod SaaS platform is ready on port 3000.`
 
+## WhatsApp reliability checks
+
+- Baileys participants expose `id`, phone `jid`, and anonymous `lid`. Permission checks must compare all aliases with the domain preserved; the socket's `user.lid` may be the only matching bot identity in a group.
+- Normalize wrapped/disappearing message content before inspecting text or captions. Keep per-message errors isolated so one failed deletion does not stop the rest of a batch.
+- Reconnection events are bound to their original socket. Ignore obsolete sockets, keep only one retry timer, and retry startup errors as well as disconnects. Preserve pairing on 408/500; only confirmed WhatsApp logout (401) clears auth. A replaced session (440) needs the competing instance stopped, not new pairing.
+- `/api/status` reports the first loaded bot, which may be deactivated; a `stopped` aggregate does not establish the moderation bot's state. Use the authenticated per-bot status and activity logs. `bot_disconnected` and `moderation_skipped` include actionable reasons.
+- Tests use fake WhatsApp sockets and temporary auth directories, never real group sends or removals. Passing tests/reconnect logs are not proof a newly posted link disappeared on WhatsApp; confirm that separately from a non-admin member (group admins and the bot's own messages are exempt).
+- The Base44 sandbox is a development preview, not an always-on production hosting guarantee. No production deployment workflow is currently configured in this checkout.
+
 ## Tests
 
 ```sh
 docker compose -f docker-compose.base44.yml exec -T bot npm test
+# Focused moderation and recovery regression tests:
+docker compose -f docker-compose.base44.yml exec -T bot node --test src/BotInstance.test.js
 ```
