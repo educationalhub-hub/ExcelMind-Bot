@@ -188,7 +188,17 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
       <div id="tab-groups" class="tab-content" hidden>
         <div class="card">
           <h2>Groups <button class="btn btn-outline btn-sm" style="float:right" onclick="refreshGroups()">↻ Refresh</button></h2>
-          <div id="group-list"><div class="qr-placeholder">No groups loaded. Make sure the bot is connected.</div></div>
+          <div id="group-admin-section">
+            <h3 style="font-size:15px;margin-bottom:8px;color:var(--primary)">🛡️ Groups Where Bot is Admin</h3>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Toggle moderation on/off for each group where the bot is an admin.</p>
+            <div id="group-admin-list"><div class="qr-placeholder">No admin groups. Make the bot an admin in your groups.</div></div>
+          </div>
+          <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+          <div id="group-other-section">
+            <h3 style="font-size:15px;margin-bottom:8px;color:var(--muted)">📋 Other Groups</h3>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:12px">The bot is a member here but not an admin. No moderation controls available.</p>
+            <div id="group-other-list"><div class="qr-placeholder">No other groups.</div></div>
+          </div>
         </div>
       </div>
 
@@ -378,13 +388,33 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
   <div id="view-admin" hidden>
     <div class="admin-subnav">
       <button class="active" onclick="showAdminView('stats',this)">📊 Overview</button>
+      <button onclick="showAdminView('allbots',this)">🤖 All Bots</button>
       <button onclick="showAdminView('users',this)">👥 Users</button>
+      <button onclick="showAdminView('activity',this)">📈 Activity</button>
       <button onclick="showAdminView('announcements',this)">📢 Announcements</button>
       <button onclick="showAdminView('verifications',this)">💳 Verifications</button>
     </div>
 
     <div id="admin-stats">
       <div class="stats-grid" id="stats-grid"><div class="stat-card"><div class="stat-value">...</div><div class="stat-label">Loading</div></div></div>
+    </div>
+
+    <div id="admin-allbots" hidden>
+      <div class="card">
+        <h2>All Bots on Platform</h2>
+        <div style="overflow-x:auto"><table>
+          <thead><tr><th>Bot ID</th><th>Owner</th><th>Platform</th><th>Display Name</th><th>Role</th><th>Connection</th><th>Groups</th><th>Active</th><th>Actions</th></tr></thead>
+          <tbody id="allbots-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div id="admin-activity" hidden>
+      <div class="card">
+        <h2>Platform Activity Monitor</h2>
+        <p style="color:var(--muted);margin-bottom:16px">Recent actions from all bots across the platform (latest 200).</p>
+        <div class="log-list" id="activity-list" style="max-height:500px"><div style="color:var(--muted)">Loading activity...</div></div>
+      </div>
     </div>
 
     <div id="admin-users" hidden>
@@ -505,18 +535,57 @@ function showView(view,el){
 }
 
 // --- Admin (inline) ---
-function loadAdminView(){loadAdminStats();loadAdminUsers();loadAdminAnnouncements();}
+function loadAdminView(){loadAdminStats();loadAdminAllBots();loadAdminUsers();loadAdminActivity();loadAdminAnnouncements();loadAdminVerifications();}
 function showAdminView(view,el){
   document.getElementById('admin-stats').hidden=view!=='stats';
+  document.getElementById('admin-allbots').hidden=view!=='allbots';
   document.getElementById('admin-users').hidden=view!=='users';
+  document.getElementById('admin-activity').hidden=view!=='activity';
   document.getElementById('admin-announcements').hidden=view!=='announcements';
   document.getElementById('admin-verifications').hidden=view!=='verifications';
   document.querySelectorAll('.admin-subnav button').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
   if(view==='stats') loadAdminStats();
+  if(view==='allbots') loadAdminAllBots();
   if(view==='users') loadAdminUsers();
+  if(view==='activity') loadAdminActivity();
   if(view==='announcements') loadAdminAnnouncements();
   if(view==='verifications') loadAdminVerifications();
+}
+async function loadAdminAllBots(){
+  try{
+    const res=await fetch('/api/admin/bots');const bots=await res.json();
+    document.getElementById('allbots-tbody').innerHTML=bots.map(b=>{
+      const conn=b.connection||'stopped';
+      const plat=b.platform||'whatsapp';
+      const connLabel={connected:'✅',connecting:'🔄',scan:'📱',reconnecting:'🔄',logged_out:'🚪',stopped:'⏸️',waiting:'⏳',error:'❌'}[conn]||conn;
+      return `<tr>
+        <td style="font-size:12px">${b.id}</td>
+        <td>${b.ownerName||''} <span style="font-size:12px;color:var(--muted)">${b.ownerEmail||''}</span></td>
+        <td><span class="bot-platform platform-${plat}" style="padding:2px 8px">${plat==='telegram'?'TG':'WA'}</span></td>
+        <td>${b.displayName||'-'}</td>
+        <td>${b.role||'-'}</td>
+        <td><span class="badge s-${conn}">${connLabel} ${conn}</span></td>
+        <td>${b.groupCount||0}</td>
+        <td><span class="badge ${b.active?'badge-active':'badge-inactive'}">${b.active?'Active':'Off'}</span></td>
+        <td><button class="btn ${b.active?'btn-outline':'btn-success'} btn-sm" onclick="toggleAdminBot('${b.id}')">${b.active?'Deactivate':'Activate'}</button></td>
+      </tr>`;
+    }).join('');
+  }catch{}
+}
+async function toggleAdminBot(botId){
+  await fetch(`/api/admin/bots/${botId}/toggle`,{method:'POST'});
+  loadAdminAllBots(); loadAdminStats();
+}
+async function loadAdminActivity(){
+  try{
+    const res=await fetch('/api/admin/activity');const logs=await res.json();
+    if(!logs.length){document.getElementById('activity-list').innerHTML='<div style="color:var(--muted)">No activity recorded yet.</div>';return;}
+    document.getElementById('activity-list').innerHTML=logs.map(l=>{
+      const plat=l.platform==='telegram'?'TG':'WA';
+      return `<div class="log-entry"><div><strong>${l.action.replace(/_/g,' ')}</strong> ${l.details?'— '+l.details:''}</div>${l.group?`<div class="group-meta">📍 ${l.group}</div>`:''}<div class="group-meta">🤖 ${l.botNumber} <span class="bot-platform platform-${l.platform}" style="padding:1px 6px;font-size:11px">${plat}</span></div><div class="log-time">${new Date(l.timestamp).toLocaleString()}</div></div>`;
+    }).join('');
+  }catch{}
 }
 async function loadAdminStats(){
   try{
@@ -707,12 +776,54 @@ async function logoutBot(){
 }
 
 // --- Groups ---
+let groupSettingsCache={};
 async function loadGroups(){
   try{
-    const res=await fetch(`/api/bots/${currentBotId}/groups`);const groups=await res.json();
-    if(!groups.length){document.getElementById('group-list').innerHTML='<div class="qr-placeholder">No groups found. Make sure the bot is connected and added to groups as an admin.</div>';return;}
-    document.getElementById('group-list').innerHTML=groups.map(g=>`<div class="group-item"><div><div class="group-name">${g.name}</div><div class="group-meta">${g.participants} members ${g.isAdmin?'<span class="admin-badge">Admin</span>':''}</div></div>${g.isAdmin?`<button class="btn btn-outline btn-sm" onclick="toggleLock('${g.jid}')">Lock/Unlock</button>`:''}</div>`).join('');
+    const [groupsRes,settingsRes]=await Promise.all([
+      fetch(`/api/bots/${currentBotId}/groups`),
+      fetch(`/api/bots/${currentBotId}/group-settings`)
+    ]);
+    const groups=await groupsRes.json();
+    groupSettingsCache=await settingsRes.json();
+    if(!groups.length){
+      document.getElementById('group-admin-list').innerHTML='<div class="qr-placeholder">No groups found. Make sure the bot is connected and added to groups.</div>';
+      document.getElementById('group-other-list').innerHTML='';
+      return;
+    }
+    const adminGroups=groups.filter(g=>g.isAdmin);
+    const otherGroups=groups.filter(g=>!g.isAdmin);
+    // Admin groups with moderation toggle + lock/unlock
+    if(!adminGroups.length){
+      document.getElementById('group-admin-list').innerHTML='<div class="qr-placeholder">The bot is not an admin in any group. Add it as admin to enable moderation.</div>';
+    } else {
+      document.getElementById('group-admin-list').innerHTML=adminGroups.map(g=>{
+        const setting=groupSettingsCache[g.jid]||{moderation:true};
+        const modOn=setting.moderation!==false;
+        return `<div class="group-item">
+          <div>
+            <div class="group-name">${g.name} <span class="admin-badge">Admin</span></div>
+            <div class="group-meta">${g.participants} members</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label style="font-size:13px;display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" ${modOn?'checked':''} onchange="toggleGroupMod('${g.jid}',this.checked)" style="width:auto"> Moderation
+            </label>
+            <button class="btn btn-outline btn-sm" onclick="toggleLock('${g.jid}')">Lock/Unlock</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    // Other groups (no controls)
+    if(!otherGroups.length){
+      document.getElementById('group-other-list').innerHTML='<div class="qr-placeholder" style="padding:12px">No other groups.</div>';
+    } else {
+      document.getElementById('group-other-list').innerHTML=otherGroups.map(g=>`<div class="group-item"><div><div class="group-name">${g.name}</div><div class="group-meta">${g.participants} members</div></div><span style="font-size:13px;color:var(--muted)">Not admin</span></div>`).join('');
+    }
   }catch{}
+}
+async function toggleGroupMod(jid,moderation){
+  await fetch(`/api/bots/${currentBotId}/group-settings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jid,moderation})});
+  groupSettingsCache[jid]={moderation};
 }
 async function refreshGroups(){await fetch(`/api/bots/${currentBotId}/groups/refresh`,{method:'POST'});loadGroups();}
 async function toggleLock(jid){if(confirm('Lock this group (admins only)?'))await fetch(`/api/bots/${currentBotId}/lock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid:jid})});else await fetch(`/api/bots/${currentBotId}/unlock`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid:jid})});}

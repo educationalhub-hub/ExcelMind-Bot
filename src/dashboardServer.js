@@ -263,6 +263,81 @@ export function createApp(botManager) {
     }
   });
 
+  // List all bots across all users (admin only)
+  adminApi.get('/bots', async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT b.*, u.email as owner_email, u.name as owner_name
+         FROM bots b JOIN users u ON b.user_id = u.id
+         ORDER BY b.created_at DESC`
+      );
+      const bots = result.rows.map((row) => {
+        const bot = botManager.getBot(row.id);
+        return {
+          id: row.id,
+          platform: row.platform,
+          phoneNumber: row.phone_number,
+          displayName: row.display_name,
+          role: row.role,
+          active: row.active,
+          capabilities: row.capabilities,
+          ownerEmail: row.owner_email,
+          ownerName: row.owner_name,
+          connection: bot?.state?.connection || 'stopped',
+          botNumber: bot?.state?.botNumber || null,
+          groupCount: bot?.state?.groups?.length || 0,
+          createdAt: row.created_at,
+        };
+      });
+      res.json(bots);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch bots' });
+    }
+  });
+
+  // Toggle any bot's active state (admin only)
+  adminApi.post('/bots/:botId/toggle', async (req, res) => {
+    const { botId } = req.params;
+    try {
+      const botRow = await pool.query('SELECT user_id FROM bots WHERE id = $1', [botId]);
+      if (!botRow.rows.length) return res.status(404).json({ error: 'Bot not found' });
+      const bot = botManager.getBot(botId);
+      if (!bot) return res.status(404).json({ error: 'Bot not loaded' });
+      if (bot.active) {
+        await bot.deactivate();
+        await pool.query('UPDATE bots SET active = false WHERE id = $1', [botId]);
+      } else {
+        await bot.activate();
+        await pool.query('UPDATE bots SET active = true WHERE id = $1', [botId]);
+      }
+      res.json(bot.getStatusSummary());
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Aggregate activity from all bots (admin only)
+  adminApi.get('/activity', async (req, res) => {
+    try {
+      const allLogs = [];
+      for (const bot of botManager.bots.values()) {
+        const ownerEmail = bot.number || bot.id;
+        for (const log of bot.state.logs || []) {
+          allLogs.push({
+            ...log,
+            botId: bot.id,
+            botNumber: bot.number || bot.displayName || bot.id,
+            platform: bot.platform || 'whatsapp',
+          });
+        }
+      }
+      allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      res.json(allLogs.slice(0, 200));
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch activity' });
+    }
+  });
+
   // List all payment verifications (admin only)
   adminApi.get('/verifications', async (req, res) => {
     try {
