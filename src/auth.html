@@ -94,7 +94,7 @@ async function submitForm(e) {
       btn.textContent = mode === 'signup' ? 'Create account' : 'Log in';
       return;
     }
-    window.location.href = '/dashboard';
+    window.location.href = '/dashboard' + (mode === 'signup' ? '?welcome=1' : '');
   } catch (err) {
     errEl.textContent = 'Network error. Please try again.';
     errEl.style.display = 'block';

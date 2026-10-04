@@ -222,8 +222,10 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
         <div class="card">
           <h2>Moderation Settings</h2>
           <div class="form-group"><label><input type="checkbox" id="set-antiLink" style="width:auto;margin-right:8px"> Anti-link (delete links from non-admins)</label></div>
-          <div class="form-group"><label><input type="checkbox" id="set-antiAbuse" style="width:auto;margin-right:8px"> Anti-abuse (delete offensive words)</label></div>
+          <div class="form-group"><label><input type="checkbox" id="set-antiAbuse" style="width:auto;margin-right:8px"> Anti-abuse (warn 3×, then kick 12h)</label></div>
           <div class="form-group"><label>Abusive words (comma-separated)</label><textarea id="set-abusiveWords" placeholder="fuck, shit, bastard..."></textarea></div>
+          <div class="form-group"><label>Link exemptions (comma-separated keywords — links containing these will NOT be deleted)</label><textarea id="set-linkExemptions" placeholder="youtube.com, t.me/mychannel, google.com"></textarea></div>
+          <div class="form-group"><label><input type="checkbox" id="set-welcomeEnabled" style="width:auto;margin-right:8px"> Welcome message for new group members (OFF by default — turn ON to greet new joiners)</label></div>
           <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button>
         </div>
         <div class="card">
@@ -633,7 +635,23 @@ async function checkAuth(){
     userPlan=data.user.plan||'free';
     if(data.user.role==='admin'||data.user.role==='founder') document.getElementById('admin-tab').hidden=false;
     loadAllCaps(); loadBots(); loadProfile(); loadPlans(); loadCredits(); loadNotifications();
+    // Show welcome or upgrade banner based on URL params
+    const params=new URLSearchParams(location.search);
+    if(params.get('welcome')){
+      showBanner('👋 Welcome to OmniMod, '+(data.user.name||data.user.email)+'! Start by creating your first bot in the "My Bots" tab.','success');
+      history.replaceState(null,'','/dashboard');
+    } else if(params.get('upgrade')==='success'){
+      showBanner('🎉 Congratulations! Your plan has been upgraded. Enjoy your new features!','success');
+      history.replaceState(null,'','/dashboard');
+    }
   }catch{window.location.href='/login';}
+}
+function showBanner(message,type){
+  const banner=document.createElement('div');
+  banner.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:'+(type==='success'?'#d1fae5':'#fef3c7')+';border:1px solid '+(type==='success'?'#10b981':'#f59e0b')+';border-radius:12px;padding:16px 24px;max-width:90%;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:300;font-size:14px;text-align:center';
+  banner.innerHTML=message+'<br><button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="this.parentElement.remove()">Got it</button>';
+  document.body.appendChild(banner);
+  setTimeout(()=>{if(banner.parentElement)banner.remove()},15000);
 }
 
 async function loadCredits(){
@@ -1259,11 +1277,13 @@ async function loadSettings(){
   document.getElementById('set-antiLink').checked=settings.antiLink;
   document.getElementById('set-antiAbuse').checked=settings.antiAbuse;
   document.getElementById('set-abusiveWords').value=(settings.abusiveWords||[]).join(', ');
+  document.getElementById('set-linkExemptions').value=(settings.linkExemptions||[]).join(', ');
+  document.getElementById('set-welcomeEnabled').checked=!!settings.welcomeEnabled;
   document.getElementById('info-displayName').value=status.displayName||'';
   document.getElementById('info-role').value=status.role||'Moderator';
 }
 async function saveSettings(){
-  const settings={antiLink:document.getElementById('set-antiLink').checked,antiAbuse:document.getElementById('set-antiAbuse').checked,abusiveWords:document.getElementById('set-abusiveWords').value.split(',').map(w=>w.trim()).filter(Boolean)};
+  const settings={antiLink:document.getElementById('set-antiLink').checked,antiAbuse:document.getElementById('set-antiAbuse').checked,abusiveWords:document.getElementById('set-abusiveWords').value.split(',').map(w=>w.trim()).filter(Boolean),linkExemptions:document.getElementById('set-linkExemptions').value.split(',').map(w=>w.trim()).filter(Boolean),welcomeEnabled:document.getElementById('set-welcomeEnabled').checked};
   await fetch(`/api/bots/${currentBotId}/settings`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});alert('Settings saved!');
 }
 async function updateBotInfo(){

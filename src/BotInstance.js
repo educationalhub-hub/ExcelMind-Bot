@@ -10,6 +10,7 @@ import {
   resetLinkRegex,
   isAdmin,
   containsAbuse,
+  hasNonExemptedLink,
 } from './antiLink.js';
 import { config } from './config.js';
 import { pool } from './db.js';
@@ -59,6 +60,7 @@ export class BotInstance {
     this.scheduleTimer = null;
     this.lastScheduleRun = {};
     this.quizState = createQuizState();
+    this.abuseWarnings = new Map(); // key: `${groupJid}:${senderJid}` → warning count
 
     this.state = {
       connection: 'waiting',
@@ -70,6 +72,8 @@ export class BotInstance {
         antiLink: true,
         antiAbuse: true,
         abusiveWords: [...DEFAULT_ABUSIVE_WORDS],
+        welcomeEnabled: false,
+        linkExemptions: [],
       },
       groupSettings: {},
       mutedUsers: {},
@@ -151,8 +155,12 @@ export class BotInstance {
   updateSettings(newSettings) {
     if (typeof newSettings.antiLink === 'boolean') this.state.settings.antiLink = newSettings.antiLink;
     if (typeof newSettings.antiAbuse === 'boolean') this.state.settings.antiAbuse = newSettings.antiAbuse;
+    if (typeof newSettings.welcomeEnabled === 'boolean') this.state.settings.welcomeEnabled = newSettings.welcomeEnabled;
     if (Array.isArray(newSettings.abusiveWords)) {
       this.state.settings.abusiveWords = newSettings.abusiveWords.filter((w) => typeof w === 'string' && w.trim());
+    }
+    if (Array.isArray(newSettings.linkExemptions)) {
+      this.state.settings.linkExemptions = newSettings.linkExemptions.filter((w) => typeof w === 'string' && w.trim());
     }
   }
 
@@ -361,95 +369,138 @@ export class BotInstance {
   }
 
   async handleMessages(messages) {
-    try {
-      const message = messages[0];
-      if (!message?.message || message.key.fromMe) return;
-      const remoteJid = message.key.remoteJid;
-      if (!remoteJid?.endsWith('@g.us')) return;
-
-      const msg = message.message;
-      const contextInfo =
-        msg.extendedTextMessage?.contextInfo ||
-        msg.imageMessage?.contextInfo ||
-        msg.videoMessage?.contextInfo || {};
-
-      const messageText = [
-        msg.conversation,
-        msg.extendedTextMessage?.text,
-        msg.extendedTextMessage?.canonicalUrl,
-        msg.imageMessage?.caption,
-        msg.videoMessage?.caption,
-        msg.documentMessage?.caption,
-        msg.liveLocationMessage?.caption,
-        msg.buttonsMessage?.contentText,
-        msg.listMessage?.description,
-        contextInfo?.externalAdReply?.body,
-      ].filter(Boolean).join(' ') || '';
-
-      if (!messageText) return;
-
-      const groupMetadata = await this.sock.groupMetadata(remoteJid);
-      const groupName = groupMetadata.subject || remoteJid;
-
-      if (!this.isBotAdminInGroup(groupMetadata, this.sock.user?.id)) return;
-
-      const groupSetting = this.getGroupSetting(remoteJid);
-      if (!groupSetting.moderation) return;
-
-      const senderJid = message.key.participant || message.participant;
-      if (isAdmin(senderJid, groupMetadata)) return;
-
-      resetLinkRegex();
-      const hasLink = this.capabilities.antiLink && this.state.settings.antiLink && containsLink(messageText);
-      const hasAbuse =
-        this.capabilities.moderation &&
-        this.state.settings.antiAbuse &&
-        containsAbuse(messageText, this.state.settings.abusiveWords);
-      if (!hasLink && !hasAbuse) return;
-
-      await this.sock.sendMessage(remoteJid, { delete: message.key });
-      const action = hasLink ? 'link_deleted' : 'abuse_deleted';
-      const reason = hasLink ? 'link' : 'abusive language';
-      this.addLog(action, {
-        group: groupName, groupJid: remoteJid,
-        sender: senderJid || 'unknown',
-        content: messageText.slice(0, 100), reason,
-      });
-      console.log(`🗑️ ${this.id}: Deleted ${reason} from ${senderJid || 'unknown'} in ${groupName}`);
-
-      // Mute (kick + auto re-add) for link violations
-      if (hasLink && senderJid && !this.isUserMuted(remoteJid, senderJid)) {
-        try {
-          await this.sock.groupParticipantsUpdate(remoteJid, [senderJid], 'remove');
-          this.addMutedUser(remoteJid, senderJid, config.muteDurationMs);
-          this.addLog('user_muted', {
-            group: groupName, groupJid: remoteJid, sender: senderJid,
-            details: 'Muted for 12 hours (link violation)',
-          });
-          console.log(`🔇 ${this.id}: Muted ${senderJid} in ${groupName} for 12h`);
-
-          const timerKey = `${remoteJid}:${senderJid}`;
-          const timer = setTimeout(async () => {
-            try {
-              await this.sock.groupParticipantsUpdate(remoteJid, [senderJid], 'add');
-              this.removeMutedUser(remoteJid, senderJid);
-              this.addLog('user_unmuted', {
-                group: groupName, groupJid: remoteJid, sender: senderJid,
-                details: 'Auto-unmuted after 12h',
-              });
-              console.log(`🔊 ${this.id}: Unmuted ${senderJid} in ${groupName}`);
-            } catch (error) {
-              console.error(`❌ ${this.id} unmute failed:`, error.message);
-            }
-            this.muteTimers.delete(timerKey);
-          }, config.muteDurationMs);
-          this.muteTimers.set(timerKey, timer);
-        } catch (error) {
-          console.error(`❌ ${this.id} mute failed:`, error.message);
-        }
+    for (const message of messages) {
+      try {
+        await this._moderateMessage(message);
+      } catch (error) {
+        console.error(`❌ ${this.id} moderation error:`, error);
       }
+    }
+  }
+
+  async _moderateMessage(message) {
+    if (!message?.message || message.key.fromMe) return;
+    const remoteJid = message.key.remoteJid;
+    if (!remoteJid?.endsWith('@g.us')) return;
+
+    const msg = message.message;
+    const contextInfo =
+      msg.extendedTextMessage?.contextInfo ||
+      msg.imageMessage?.contextInfo ||
+      msg.videoMessage?.contextInfo || {};
+
+    const messageText = [
+      msg.conversation,
+      msg.extendedTextMessage?.text,
+      msg.extendedTextMessage?.canonicalUrl,
+      msg.extendedTextMessage?.matchedText,
+      msg.imageMessage?.caption,
+      msg.videoMessage?.caption,
+      msg.documentMessage?.caption,
+      msg.liveLocationMessage?.caption,
+      msg.buttonsMessage?.contentText,
+      msg.listMessage?.description,
+      contextInfo?.externalAdReply?.body,
+    ].filter(Boolean).join(' ') || '';
+
+    if (!messageText) return;
+
+    const groupMetadata = await this.sock.groupMetadata(remoteJid);
+    const groupName = groupMetadata.subject || remoteJid;
+
+    if (!this.isBotAdminInGroup(groupMetadata, this.sock.user?.id)) return;
+
+    const groupSetting = this.getGroupSetting(remoteJid);
+    if (!groupSetting.moderation) return;
+
+    const senderJid = message.key.participant || message.participant;
+    if (isAdmin(senderJid, groupMetadata)) return;
+
+    resetLinkRegex();
+    const exemptions = this.state.settings.linkExemptions || [];
+    const hasLink = this.capabilities.antiLink && this.state.settings.antiLink && hasNonExemptedLink(messageText, exemptions);
+    const hasAbuse =
+      this.capabilities.moderation &&
+      this.state.settings.antiAbuse &&
+      containsAbuse(messageText, this.state.settings.abusiveWords);
+    if (!hasLink && !hasAbuse) return;
+
+    await this.sock.sendMessage(remoteJid, { delete: message.key });
+    const reason = hasLink ? 'link' : 'abusive language';
+    this.addLog(hasLink ? 'link_deleted' : 'abuse_deleted', {
+      group: groupName, groupJid: remoteJid,
+      sender: senderJid || 'unknown',
+      content: messageText.slice(0, 100), reason,
+    });
+    console.log(`🗑️ ${this.id}: Deleted ${reason} from ${senderJid || 'unknown'} in ${groupName}`);
+
+    // --- Link violation: kick + 12h mute + auto re-add ---
+    if (hasLink && senderJid && !this.isUserMuted(remoteJid, senderJid)) {
+      await this._kickAndAutoAdd(remoteJid, senderJid, groupName, 'link violation');
+    }
+
+    // --- Abuse violation: 3-strike warning system ---
+    if (hasAbuse && senderJid) {
+      const warnKey = `${remoteJid}:${senderJid}`;
+      const count = (this.abuseWarnings.get(warnKey) || 0) + 1;
+      this.abuseWarnings.set(warnKey, count);
+
+      if (count < 3) {
+        // Warn the user
+        try {
+          const phoneNum = senderJid.split('@')[0].split(':')[0];
+          await this.sock.sendMessage(remoteJid, {
+            text: `⚠️ @${phoneNum}, please refrain from using abusive language. This is warning #${count} of 3. After 3 warnings you will be removed for 12 hours.`,
+            mentions: [senderJid],
+          });
+          this.addLog('abuse_warning', {
+            group: groupName, groupJid: remoteJid, sender: senderJid,
+            details: `Warning #${count} of 3`,
+          });
+          console.log(`⚠️ ${this.id}: Abuse warning #${count} for ${senderJid} in ${groupName}`);
+        } catch (e) {
+          console.error(`❌ ${this.id} warning send failed:`, e.message);
+        }
+      } else {
+        // Kick for 12h and reset counter
+        this.abuseWarnings.set(warnKey, 0);
+        await this._kickAndAutoAdd(remoteJid, senderJid, groupName, 'repeated abusive language');
+      }
+    }
+  }
+
+  /**
+   * Remove a participant and auto re-add them after the configured mute duration.
+   * Shared by both link-violation and abuse-strike-out flows.
+   */
+  async _kickAndAutoAdd(remoteJid, senderJid, groupName, reason) {
+    try {
+      await this.sock.groupParticipantsUpdate(remoteJid, [senderJid], 'remove');
+      this.addMutedUser(remoteJid, senderJid, config.muteDurationMs);
+      this.addLog('user_muted', {
+        group: groupName, groupJid: remoteJid, sender: senderJid,
+        details: `Muted for 12 hours (${reason})`,
+      });
+      console.log(`🔇 ${this.id}: Muted ${senderJid} in ${groupName} for 12h (${reason})`);
+
+      const timerKey = `${remoteJid}:${senderJid}`;
+      const timer = setTimeout(async () => {
+        try {
+          await this.sock.groupParticipantsUpdate(remoteJid, [senderJid], 'add');
+          this.removeMutedUser(remoteJid, senderJid);
+          this.addLog('user_unmuted', {
+            group: groupName, groupJid: remoteJid, sender: senderJid,
+            details: 'Auto-unmuted after 12h',
+          });
+          console.log(`🔊 ${this.id}: Unmuted ${senderJid} in ${groupName}`);
+        } catch (error) {
+          console.error(`❌ ${this.id} unmute failed:`, error.message);
+        }
+        this.muteTimers.delete(timerKey);
+      }, config.muteDurationMs);
+      this.muteTimers.set(timerKey, timer);
     } catch (error) {
-      console.error(`❌ ${this.id} moderation error:`, error);
+      console.error(`❌ ${this.id} mute failed:`, error.message);
     }
   }
 
@@ -659,9 +710,10 @@ export class BotInstance {
     this.quizState.activePolls = {};
   }
 
-  // --- Greeter: welcome new members ---
+  // --- Greeter: welcome new members (only when welcomeEnabled is ON) ---
   async handleParticipantUpdate(update) {
     if (!this.capabilities.greeter) return;
+    if (!this.state.settings.welcomeEnabled) return;
     if (update.action !== 'add') return;
     const groupJid = update.id;
     if (!groupJid?.endsWith('@g.us')) return;

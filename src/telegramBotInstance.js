@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const TelegramBot = require('node-telegram-bot-api');
-import { containsLink, containsAbuse } from './antiLink.js';
+import { containsLink, containsAbuse, hasNonExemptedLink } from './antiLink.js';
 import { getQuizQuestion, createQuizState, QUIZZES_BEFORE_RESULTS } from './quizSystem.js';
 import { config, APP_NAME } from './config.js';
 import { pool } from './db.js';
@@ -28,6 +28,7 @@ export class TelegramBotInstance {
     this.scheduleTimer = null;
     this.lastScheduleRun = {};
     this.quizState = createQuizState();
+    this.abuseWarnings = new Map(); // key: `${chatId}:${userId}` → warning count
 
     this.state = {
       connection: 'waiting',
@@ -40,6 +41,8 @@ export class TelegramBotInstance {
         antiLink: true,
         antiAbuse: true,
         abusiveWords: [...DEFAULT_ABUSIVE_WORDS],
+        welcomeEnabled: false,
+        linkExemptions: [],
       },
       groupSettings: {},
       schedules: { ...config.defaultSchedules },
@@ -99,8 +102,12 @@ export class TelegramBotInstance {
   updateSettings(newSettings) {
     if (typeof newSettings.antiLink === 'boolean') this.state.settings.antiLink = newSettings.antiLink;
     if (typeof newSettings.antiAbuse === 'boolean') this.state.settings.antiAbuse = newSettings.antiAbuse;
+    if (typeof newSettings.welcomeEnabled === 'boolean') this.state.settings.welcomeEnabled = newSettings.welcomeEnabled;
     if (Array.isArray(newSettings.abusiveWords)) {
       this.state.settings.abusiveWords = newSettings.abusiveWords.filter((w) => typeof w === 'string' && w.trim());
+    }
+    if (Array.isArray(newSettings.linkExemptions)) {
+      this.state.settings.linkExemptions = newSettings.linkExemptions.filter((w) => typeof w === 'string' && w.trim());
     }
   }
 
@@ -263,7 +270,8 @@ export class TelegramBotInstance {
       const senderIsAdmin = await this.isSenderAdmin(chatId, senderId);
       if (senderIsAdmin) return;
 
-      const hasLink = this.capabilities.antiLink && this.state.settings.antiLink && containsLink(text);
+      const exemptions = this.state.settings.linkExemptions || [];
+      const hasLink = this.capabilities.antiLink && this.state.settings.antiLink && hasNonExemptedLink(text, exemptions);
       const hasAbuse = this.capabilities.moderation && this.state.settings.antiAbuse && containsAbuse(text, this.state.settings.abusiveWords);
 
       if (!hasLink && !hasAbuse) return;
@@ -282,7 +290,7 @@ export class TelegramBotInstance {
         console.error(`❌ Telegram ${this.id} delete failed:`, err.message);
       }
 
-      // Restrict user for link violation (mute)
+      // --- Link violation: restrict for 12h ---
       if (hasLink) {
         try {
           const until = Math.floor(Date.now() / 1000) + 12 * 60 * 60; // 12h
@@ -302,14 +310,56 @@ export class TelegramBotInstance {
           console.error(`❌ Telegram ${this.id} mute failed:`, err.message);
         }
       }
+
+      // --- Abuse violation: 3-strike warning system ---
+      if (hasAbuse) {
+        const warnKey = `${chatId}:${senderId}`;
+        const count = (this.abuseWarnings.get(warnKey) || 0) + 1;
+        this.abuseWarnings.set(warnKey, count);
+
+        if (count < 3) {
+          try {
+            const name = msg.from?.first_name || msg.from?.username || String(senderId);
+            await this.bot.sendMessage(chatId, `⚠️ ${name}, please refrain from using abusive language. This is warning #${count} of 3. After 3 warnings you will be removed for 12 hours.`);
+            this.addLog('abuse_warning', {
+              group: chatTitle, groupJid: String(chatId), sender: String(senderId),
+              details: `Warning #${count} of 3`,
+            });
+            console.log(`⚠️ Telegram ${this.id}: Abuse warning #${count} for ${senderId} in ${chatTitle}`);
+          } catch (e) {
+            console.error(`❌ Telegram ${this.id} warning send failed:`, e.message);
+          }
+        } else {
+          // Kick for 12h (Telegram: kick + unmute after 12h)
+          this.abuseWarnings.set(warnKey, 0);
+          try {
+            const until = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
+            await this.bot.restrictChatMember(chatId, senderId, {
+              can_send_messages: false,
+              can_send_media_messages: false,
+              can_send_other_messages: false,
+              can_add_web_page_previews: false,
+              until_date: until,
+            });
+            this.addLog('user_muted', {
+              group: chatTitle, groupJid: String(chatId), sender: String(senderId),
+              details: 'Muted for 12 hours (repeated abusive language)',
+            });
+            console.log(`🚫 Telegram ${this.id}: Muted ${senderId} in ${chatTitle} for 12h (3 strikes)`);
+          } catch (err) {
+            console.error(`❌ Telegram ${this.id} abuse mute failed:`, err.message);
+          }
+        }
+      }
     } catch (error) {
       console.error(`❌ Telegram ${this.id} moderation error:`, error);
     }
   }
 
-  // --- Greeter: welcome new members ---
+  // --- Greeter: welcome new members (only when welcomeEnabled is ON) ---
   async handleNewMembers(msg) {
     if (!this.capabilities.greeter) return;
+    if (!this.state.settings.welcomeEnabled) return;
     const chatId = msg.chat?.id;
     if (!chatId) return;
     for (const member of msg.new_chat_members || []) {
