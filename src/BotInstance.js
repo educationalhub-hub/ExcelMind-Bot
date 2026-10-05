@@ -19,6 +19,7 @@ import {
   createQuizState,
   QUIZZES_BEFORE_RESULTS,
 } from './quizSystem.js';
+import { notifyOwner } from './notifyOwner.js';
 
 const DEFAULT_ABUSIVE_WORDS = [
   'fuck', 'shit', 'bitch', 'bastard', 'idiot', 'stupid',
@@ -629,6 +630,11 @@ export class BotInstance {
       } else {
         // Kick for 12h and reset counter
         this.abuseWarnings.set(warnKey, 0);
+        const phoneNum = senderJid.split('@')[0].split(':')[0];
+        await notifyOwner(
+          this.userId,
+          `🚨 3-strike limit reached — @${phoneNum} was removed from "${groupName}" for 12 hours due to repeated abusive language.`,
+        );
         await this._kickAndAutoAdd(remoteJid, senderJid, groupName, 'repeated abusive language');
       }
     }

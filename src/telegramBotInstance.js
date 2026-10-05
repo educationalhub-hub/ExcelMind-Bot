@@ -5,6 +5,7 @@ import { containsLink, containsAbuse, hasNonExemptedLink } from './antiLink.js';
 import { getQuizQuestion, createQuizState, QUIZZES_BEFORE_RESULTS } from './quizSystem.js';
 import { config, APP_NAME } from './config.js';
 import { pool } from './db.js';
+import { notifyOwner } from './notifyOwner.js';
 
 const DEFAULT_ABUSIVE_WORDS = [
   'fuck', 'shit', 'bitch', 'bastard', 'idiot', 'stupid',
@@ -332,6 +333,11 @@ export class TelegramBotInstance {
         } else {
           // Kick for 12h (Telegram: kick + unmute after 12h)
           this.abuseWarnings.set(warnKey, 0);
+          const memberName = msg.from?.first_name || msg.from?.username || String(senderId);
+          await notifyOwner(
+            this.userId,
+            `🚨 3-strike limit reached — ${memberName} was muted for 12 hours in "${chatTitle}" due to repeated abusive language.`,
+          );
           try {
             const until = Math.floor(Date.now() / 1000) + 12 * 60 * 60;
             await this.bot.restrictChatMember(chatId, senderId, {

@@ -687,6 +687,9 @@ async function checkAuth(){
     userPlan=data.user.plan||'free';
     if(data.user.role==='admin'||data.user.role==='founder') document.getElementById('admin-tab').hidden=false;
     loadAllCaps(); loadBots(); loadProfile(); loadPlans(); loadCredits(); loadNotifications();
+    // Poll for new notifications every 15s so 3-strike kicks surface immediately
+    if(window._notifTimer){clearInterval(window._notifTimer);}
+    window._notifTimer=setInterval(loadNotifications,15000);
     // Show welcome or upgrade banner based on URL params
     const params=new URLSearchParams(location.search);
     if(params.get('welcome')){
