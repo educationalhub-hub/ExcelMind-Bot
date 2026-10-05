@@ -63,6 +63,7 @@ export class BotInstance {
     this.quizState = createQuizState();
     this.abuseWarnings = new Map(); // key: `${groupJid}:${senderJid}` → warning count
     this.historyRecoverySince = null;
+    this.recentMessages = new Map(); // groupJid → [{key, text, timestamp}], max 200 per group
     this.moderationQueue = new ModerationQueue({
       isReady: () => this.active && this.state.connection === 'connected' && !!this.sock,
       process: (message) => this._moderateMessage(message),
@@ -450,8 +451,76 @@ export class BotInstance {
 
   async handleMessages(messages) {
     if (!this.active) return;
+    this._bufferRecentMessages(messages);
     this.moderationQueue.add(messages);
     await this.moderationQueue.drain();
+  }
+
+  /** Store recent group messages so the dashboard can search and delete them retroactively. */
+  _bufferRecentMessages(messages) {
+    for (const message of messages) {
+      if (!message?.message || message.key?.fromMe) continue;
+      const remoteJid = message.key?.remoteJid;
+      if (!remoteJid?.endsWith('@g.us')) continue;
+      const text = this._extractMessageText(message);
+      if (!text) continue;
+      let buffer = this.recentMessages.get(remoteJid);
+      if (!buffer) { buffer = []; this.recentMessages.set(remoteJid, buffer); }
+      buffer.push({ key: message.key, text, timestamp: Date.now() });
+      if (buffer.length > 200) buffer.splice(0, buffer.length - 200);
+    }
+  }
+
+  /** Extract readable text from a Baileys message object (shared by moderation and buffer). */
+  _extractMessageText(message) {
+    const msg = normalizeMessageContent(message.message);
+    if (!msg) return '';
+    const contextInfo =
+      msg.extendedTextMessage?.contextInfo ||
+      msg.imageMessage?.contextInfo ||
+      msg.videoMessage?.contextInfo || {};
+    return [
+      msg.conversation,
+      msg.extendedTextMessage?.text,
+      msg.extendedTextMessage?.canonicalUrl,
+      msg.extendedTextMessage?.matchedText,
+      msg.imageMessage?.caption,
+      msg.videoMessage?.caption,
+      msg.documentMessage?.caption,
+      msg.liveLocationMessage?.caption,
+      msg.buttonsMessage?.contentText,
+      msg.listMessage?.description,
+      contextInfo?.externalAdReply?.body,
+    ].filter(Boolean).join(' ') || '';
+  }
+
+  /** Search recent messages in a group for one containing searchText, then delete it. */
+  async deleteMessageByContent(groupJid, searchText) {
+    if (!this.active || this.state.connection !== 'connected' || !this.sock)
+      throw new Error('Bot is not connected');
+    const buffer = this.recentMessages.get(groupJid) || [];
+    const needle = searchText.toLowerCase().trim();
+    const match = [...buffer].reverse().find((entry) =>
+      entry.text.toLowerCase().includes(needle),
+    );
+    if (!match) throw new Error('No recent message found containing that text. The message may be older than what the bot has buffered, or was sent while the bot was offline.');
+    await this.sock.sendMessage(groupJid, { delete: match.key });
+    const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
+    this.addLog('manual_delete', { group: groupName, groupJid, content: match.text.slice(0, 100), details: 'Message deleted manually from dashboard' });
+    return { success: true, content: match.text.slice(0, 100) };
+  }
+
+  /** Remove a participant from a group by phone number. */
+  async removeParticipantByPhone(groupJid, phoneNumber) {
+    if (!this.active || this.state.connection !== 'connected' || !this.sock)
+      throw new Error('Bot is not connected');
+    const digits = String(phoneNumber).replace(/\D/g, '');
+    if (!digits) throw new Error('A valid phone number is required');
+    const participantJid = `${digits}@s.whatsapp.net`;
+    const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
+    await this.sock.groupParticipantsUpdate(groupJid, [participantJid], 'remove');
+    this.addLog('manual_remove', { group: groupName, groupJid, sender: participantJid, details: 'Member removed manually from dashboard' });
+    return { success: true, participant: participantJid };
   }
 
   async handleHistoryMessages(messages = []) {

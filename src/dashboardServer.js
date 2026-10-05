@@ -896,6 +896,34 @@ export function createApp(botManager) {
     res.json(bot.state.groupSettings);
   });
 
+  // Delete a specific message by pasting its link text (search recent buffer)
+  botApi.post('/bots/:botId/delete-message', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid, linkText } = req.body || {};
+    if (!groupJid || !linkText) return res.status(400).json({ error: 'groupJid and linkText are required' });
+    try {
+      const result = await bot.deleteMessageByContent(groupJid, linkText);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Remove a participant from a group by phone number
+  botApi.post('/bots/:botId/remove-participant', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid, phoneNumber } = req.body || {};
+    if (!groupJid || !phoneNumber) return res.status(400).json({ error: 'groupJid and phoneNumber are required' });
+    try {
+      const result = await bot.removeParticipantByPhone(groupJid, phoneNumber);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   app.use('/api', botApi);
 
   return app;

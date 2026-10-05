@@ -161,6 +161,7 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
         <button class="detail-tab" onclick="switchTab('schedules',this)">Schedules</button>
         <button class="detail-tab" onclick="switchTab('quiz',this)">Quiz & Greeting</button>
         <button class="detail-tab" onclick="switchTab('activity',this)">Activity</button>
+        <button class="detail-tab" onclick="switchTab('actions',this)">⚡ Quick Actions</button>
       </div>
 
       <!-- Connection tab (QR for WhatsApp, token for Telegram) -->
@@ -287,6 +288,32 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
         <div class="card">
           <h2>Activity Log</h2>
           <div class="log-list" id="log-list"><div class="qr-placeholder">No activity yet.</div></div>
+        </div>
+      </div>
+
+      <div id="tab-actions" class="tab-content" hidden>
+        <div class="card">
+          <h2>⚡ Quick Actions</h2>
+          <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Manually delete a message or remove a member from a group. The bot must be connected and an admin in the group.</p>
+
+          <div class="form-group">
+            <label>Select Group</label>
+            <select id="qa-group"></select>
+          </div>
+
+          <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+          <h3 style="font-size:15px;margin-bottom:12px">🗑️ Delete a Message by Link Text</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:8px">Paste the link (or part of the message text) that was sent. The bot searches recent messages in this group and deletes the first match.</p>
+          <div class="form-group"><label>Link or message text</label><textarea id="qa-link-text" placeholder="https://example.com/spam-link"></textarea></div>
+          <button class="btn btn-danger btn-sm" onclick="quickDeleteMessage()" id="qa-delete-btn">Delete Message</button>
+          <div id="qa-delete-status" style="font-size:13px;margin-top:8px"></div>
+
+          <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+          <h3 style="font-size:15px;margin-bottom:12px">👤 Remove a Member by Phone Number</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:8px">Enter the member's phone number with country code (no +). The bot will remove them from the selected group.</p>
+          <div class="form-group"><label>Phone Number</label><input type="text" id="qa-phone" placeholder="2349111234567"></div>
+          <button class="btn btn-danger btn-sm" onclick="quickRemoveParticipant()" id="qa-remove-btn">Remove Member</button>
+          <div id="qa-remove-status" style="font-size:13px;margin-top:8px"></div>
         </div>
       </div>
     </div>
@@ -1132,6 +1159,7 @@ function switchTab(tab,el){
   }
   if(tab==='quiz') loadQuiz();
   if(tab==='activity') loadLogs();
+  if(tab==='actions') loadQuickActions();
 }
 function startPolling(){if(pollTimer)clearInterval(pollTimer);pollTimer=setInterval(refreshBot,3000);}
 
@@ -1390,6 +1418,47 @@ async function loadLogs(){
   const res=await fetch(`/api/bots/${currentBotId}/logs`);const logs=await res.json();
   if(!logs.length){document.getElementById('log-list').innerHTML='<div class="qr-placeholder">No activity yet.</div>';return;}
   document.getElementById('log-list').innerHTML=logs.map(l=>`<div class="log-entry"><div>${l.action.replace(/_/g,' ')} ${l.details?'— '+l.details:''}</div>${l.group?`<div class="group-meta">${l.group}</div>`:''}<div class="log-time">${new Date(l.timestamp).toLocaleString()}</div></div>`).join('');
+}
+
+// --- Quick Actions ---
+async function loadQuickActions(){
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/groups`);
+    const groups=await res.json();
+    const adminGroups=groups.filter(g=>g.isAdmin);
+    const sel=document.getElementById('qa-group');
+    if(!adminGroups.length){sel.innerHTML='<option value="">No admin groups available</option>';return;}
+    sel.innerHTML=adminGroups.map(g=>`<option value="${g.jid}">${g.name}</option>`).join('');
+  }catch{document.getElementById('qa-group').innerHTML='<option value="">Failed to load groups</option>';}
+}
+async function quickDeleteMessage(){
+  const groupJid=document.getElementById('qa-group').value;
+  const linkText=document.getElementById('qa-link-text').value.trim();
+  const status=document.getElementById('qa-delete-status');
+  if(!groupJid){status.style.color='var(--danger)';status.textContent='Select a group first.';return;}
+  if(!linkText){status.style.color='var(--danger)';status.textContent='Paste the link or message text to search for.';return;}
+  status.style.color='var(--muted)';status.textContent='Searching...';
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/delete-message`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid,linkText})});
+    const data=await res.json();
+    if(data.error){status.style.color='var(--danger)';status.textContent='❌ '+data.error;}
+    else{status.style.color='#16a34a';status.textContent='✅ Message deleted successfully.';document.getElementById('qa-link-text').value='';loadLogs();}
+  }catch(e){status.style.color='var(--danger)';status.textContent='❌ Request failed: '+e.message;}
+}
+async function quickRemoveParticipant(){
+  const groupJid=document.getElementById('qa-group').value;
+  const phoneNumber=document.getElementById('qa-phone').value.trim();
+  const status=document.getElementById('qa-remove-status');
+  if(!groupJid){status.style.color='var(--danger)';status.textContent='Select a group first.';return;}
+  if(!phoneNumber){status.style.color='var(--danger)';status.textContent='Enter the phone number to remove.';return;}
+  if(!confirm(`Remove +${phoneNumber} from this group?`))return;
+  status.style.color='var(--muted)';status.textContent='Removing...';
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/remove-participant`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid,phoneNumber})});
+    const data=await res.json();
+    if(data.error){status.style.color='var(--danger)';status.textContent='❌ '+data.error;}
+    else{status.style.color='#16a34a';status.textContent='✅ Member removed successfully.';document.getElementById('qa-phone').value='';loadLogs();}
+  }catch(e){status.style.color='var(--danger)';status.textContent='❌ Request failed: '+e.message;}
 }
 
 // --- Create Bot ---
