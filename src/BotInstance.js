@@ -479,7 +479,14 @@ export class BotInstance {
     }
 
     const senderJid = message.key.participant || message.participant;
-    if (isAdmin(senderJid, groupMetadata)) return;
+    if (isAdmin(senderJid, groupMetadata)) {
+      this.addLog('link_skipped_admin', {
+        group: groupName, groupJid: remoteJid, sender: senderJid || 'unknown',
+        content: messageText.slice(0, 100), reason,
+        details: `Sender is a group admin — links from admins are not deleted.`,
+      });
+      return;
+    }
 
     await socket.sendMessage(remoteJid, { delete: message.key });
     const reason = hasLink ? 'link' : 'abusive language';

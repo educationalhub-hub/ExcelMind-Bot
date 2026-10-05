@@ -1,101 +1,157 @@
-# OmniMod — Run on Your Own Computer (Free)
+# OmniMod — Run on Your Windows Computer (Free, 24/7)
 
-Run OmniMod 24/7 on your own computer. **Your computer must stay powered on and connected to the internet** — if it sleeps or loses connection, the bot stops.
+Run OmniMod on your own Windows PC. **Your computer must stay powered on and connected to the internet** — if it sleeps or loses connection, the bot stops.
 
-## What you need (all free)
+---
 
-1. **Node.js 22+** — download from https://nodejs.org and install.
-2. **PostgreSQL 16** — download from https://www.postgresql.org/download/ and install.
-   - Remember the password you set for the `postgres` user.
-   - Create a database called `omnimod`.
+## Step 1: Install Node.js
 
-## Step-by-step
+1. Go to https://nodejs.org
+2. Download the **LTS version** (v22 or higher).
+3. Run the installer — click **Next** through all defaults.
+4. Verify: open **Command Prompt** and type:
+   ```
+   node -v
+   ```
+   You should see `v22.x.x`.
 
-### 1. Get the code
+## Step 2: Install PostgreSQL
 
-```sh
-git clone <your-repo-url> omnimod
-cd omnimod
-```
+1. Go to https://www.postgresql.org/download/windows/
+2. Download the installer and run it.
+3. When asked, set a **password for the `postgres` user** — **write this down**, you need it later.
+4. Keep the default port **5432**.
+5. Finish the installation.
+6. Open **Command Prompt** and create the database:
+   ```
+   psql -U postgres -c "CREATE DATABASE omnimod;"
+   ```
+   Enter your postgres password when prompted.
 
-### 2. Create your `.env` file
+## Step 3: Download the code
 
-```sh
-cp .env.example .env
-```
+1. Open **Command Prompt**.
+2. Choose a folder, for example your Desktop:
+   ```
+   cd %USERPROFILE%\Desktop
+   git clone <your-repo-url> omnimod
+   cd omnimod
+   ```
+   (If you don't have Git, download it from https://git-scm.com first, or download the ZIP from GitHub and extract it.)
 
-Open `.env` in a text editor and set:
+## Step 4: Create your `.env` file
 
-```
-DATABASE_URL=postgres://postgres:YOUR_PASSWORD@localhost:5432/omnimod
-JWT_SECRET= paste a random string here
-```
+1. In the `omnimod` folder, copy `.env.example` to `.env`:
+   ```
+   copy .env.example .env
+   ```
+2. Open `.env` in Notepad and edit two lines:
 
-Generate a random JWT secret (run in a terminal):
+   ```
+   DATABASE_URL=postgres://postgres:YOUR_PASSWORD@localhost:5432/omnimod
+   JWT_SECRET=paste-random-string-here
+   ```
+   Replace `YOUR_PASSWORD` with the PostgreSQL password from Step 2.
 
-```sh
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
+3. Generate a random JWT secret — in Command Prompt:
+   ```
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+   Copy the output and paste it as the `JWT_SECRET` value.
 
-### 3. Create the database
+## Step 5: Install dependencies and start
 
-Open a terminal and run (replace `YOUR_PASSWORD` with your PostgreSQL password):
+1. In Command Prompt, inside the `omnimod` folder:
+   ```
+   npm install
+   npm start
+   ```
+2. You should see:
+   ```
+   ✅ Database migrations complete
+   📊 OmniMod SaaS platform is ready on port 3000.
+   ```
+3. Open your browser to **http://localhost:3000**
+4. Click **Sign Up** and create an account — your first account becomes the founder/admin.
 
-```sh
-psql -U postgres -c "CREATE DATABASE omnimod;"
-```
+## Step 6: Pair your WhatsApp bot
 
-### 4. Install dependencies and start
+1. In the dashboard, go to **My Bots** → **Create Bot**.
+2. Choose WhatsApp, enter the phone number.
+3. Scan the QR code with your phone: WhatsApp → **Settings** → **Linked Devices** → **Link a Device**.
+4. The bot is now live. It will moderate your groups automatically.
 
-```sh
-npm install
-npm start
-```
-
-You should see:
-
-```
-✅ Database migrations complete
-📊 OmniMod SaaS platform is ready on port 3000.
-```
-
-### 5. Open the dashboard
-
-Go to **http://localhost:3000** in your browser. Sign up — your first account becomes the founder/admin automatically.
-
-### 6. Pair your WhatsApp bot
-
-- Go to the dashboard → My Bots → Create Bot.
-- Scan the QR code with your WhatsApp (Settings → Linked Devices → Link a Device).
-- The bot is now live and moderating your groups.
+---
 
 ## Keep it running 24/7
 
-### Don't let the computer sleep
+### Step 7: Prevent your computer from sleeping
 
-- **Windows:** Settings → System → Power & sleep → set "Sleep" to **Never**.
-- **Mac:** System Settings → Energy Saver → set "Prevent automatic sleep".
-- Keep your internet connection on at all times.
+1. **Windows Settings** → **System** → **Power & sleep**.
+2. Set **Sleep** to **Never** (for both "On battery" and "When plugged in").
+3. Set **Screen** to **Never** (optional, but display off is fine).
+4. Make sure your Wi-Fi or Ethernet stays connected.
 
-### Auto-restart if the bot crashes
+### Step 8: Auto-restart with PM2
 
-Use a process manager so the bot restarts automatically if it crashes:
+PM2 restarts the bot if it crashes and starts it when your computer boots.
 
-```sh
-npm install -g pm2
-pm2 start src/index.js --name omnimod
-pm2 save
-pm2 startup        # follow the instructions it prints
-```
+1. In Command Prompt:
+   ```
+   npm install -g pm2
+   pm2 start src/index.js --name omnimod
+   pm2 save
+   ```
+2. To make it start on boot:
+   ```
+   pm2 startup
+   ```
+   PM2 will print a command — **copy and run that command** in Command Prompt.
 
-This makes the bot start automatically when your computer boots and restart if it crashes.
+3. Useful PM2 commands:
+   ```
+   pm2 status            # see if the bot is running
+   pm2 logs omnimod      # view live logs
+   pm2 restart omnimod   # restart the bot
+   pm2 stop omnimod      # stop the bot
+   ```
 
-### Back up your data
+### Step 9: Back up your data
 
-Your bot pairing data is in the `auth_info/` folder and your database is in PostgreSQL. Back up both regularly.
+- **Bot pairing data:** the `auth_info/` folder — copy it somewhere safe.
+- **Database:** use pgAdmin or Command Prompt:
+  ```
+  pg_dump -U postgres omnimod > omnimod_backup.sql
+  ```
+
+---
+
+## How the bot works — and when it stops
+
+### When it works (moderating links):
+- ✅ Bot is **connected** to WhatsApp (green status in dashboard).
+- ✅ Someone sends a link in a group where the bot is an **admin**.
+- ✅ The sender is **not a group admin**.
+- → The bot **deletes the link** and temporarily removes the sender for 12 hours.
+
+### When it stops (links survive):
+- ❌ **Your computer sleeps or loses internet** → bot disconnects, misses messages.
+- ❌ **WhatsApp disconnects** (408 timeout) → bot auto-reconnects in ~4 seconds, but links sent during that gap are missed.
+- ❌ **Bot is not an admin** in that WhatsApp group → it cannot delete anyone's messages.
+- ❌ **Sender is a group admin** → admin links are not deleted by design.
+- ❌ **The group's moderation is turned off** in dashboard settings.
+
+### The 408 timeouts explained:
+WhatsApp's servers periodically close the connection (code 408). This is normal and happens every few hours. Your bot reconnects automatically in about 4 seconds. During those few seconds, any link posted will not be caught. This is a WhatsApp limitation, not a bug.
+
+---
 
 ## Troubleshooting
 
-- **"Cannot connect to PostgreSQL"** — make sure PostgreSQL is running and your password in `.env` is correct.
-- **Bot disconnects** — this is normal; OmniMod reconnects automatically. Check the dashboard logs.
-- **Port 3000 already in use** — close the other program or change the port in `src/index.js`.
+| Problem | Fix |
+|---|---|
+| "Cannot connect to PostgreSQL" | Make sure PostgreSQL is running (Start menu → "Start PostgreSQL"). Check password in `.env`. |
+| Port 3000 already in use | Close the other program, or change the port in `src/index.js` (line `app.listen(3000, ...)`). |
+| Bot shows "reconnecting" | Normal — it reconnects automatically. Wait a few seconds. |
+| Links not deleted | Check: (1) bot is connected, (2) bot is admin in the group, (3) sender is not an admin, (4) moderation is on for that group. |
+| "psql is not recognized" | Add PostgreSQL's `bin` folder to your PATH, or use pgAdmin instead. |
