@@ -136,13 +136,19 @@ PM2 restarts the bot if it crashes and starts it when your computer boots.
 
 ### When it stops (links survive):
 - ❌ **Your computer sleeps or loses internet** → bot disconnects, misses messages.
-- ❌ **WhatsApp disconnects** (408 timeout) → bot auto-reconnects in ~4 seconds, but links sent during that gap are missed.
+- ❌ **WhatsApp disconnects** (408 timeout) → moderation pauses until reconnect. The bot queues delivered messages and checks links and abusive words when connected again. It cannot recover messages WhatsApp never delivers.
 - ❌ **Bot is not an admin** in that WhatsApp group → it cannot delete anyone's messages.
 - ❌ **Sender is a group admin** → admin links are not deleted by design.
 - ❌ **The group's moderation is turned off** in dashboard settings.
 
 ### The 408 timeouts explained:
-WhatsApp's servers periodically close the connection (code 408). This is normal and happens every few hours. Your bot reconnects automatically in about 4 seconds. During those few seconds, any link posted will not be caught. This is a WhatsApp limitation, not a bug.
+**408 means a connection/request timed out**, not that the bot was banned or logged out. It can result from network loss, a stalled response, or a WhatsApp service problem; it does not have a fixed schedule.
+
+After a 408, OmniMod waits **3 seconds before its first reconnect attempt**. If consecutive attempts fail with another 408, the waits increase to **6, 12, 24, 48, then 80 seconds** (the maximum retry wait). Startup failures and other transient errors start at 5 seconds instead. A successful connection resets the retry counter. Each socket connection attempt has a 30-second timeout; actual downtime also depends on your internet and WhatsApp, so reconnection is not guaranteed within 3 or 4 seconds.
+
+Delivered group messages are buffered while connecting and checked once the socket is ready, including both links and configured abusive words. Replayed messages are deduplicated to avoid repeating warnings or removals. Recent history sync is restricted to the current process's disconnect window, not your entire chat archive. Admin exemptions, group settings and link exemptions still apply.
+
+The catch-up queue is **in memory**, retains up to **2,000 delivered group messages per bot** for at most 48 hours, and is cleared when the bot is stopped or logged out (or the process exits). Overflow, expiry and permanent moderation failures appear in the activity log. Catch-up cannot recover messages WhatsApp does not deliver, decrypt failed messages, or override WhatsApp's deletion restrictions.
 
 ---
 

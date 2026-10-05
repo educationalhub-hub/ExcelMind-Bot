@@ -12,6 +12,7 @@ import {
   hasNonExemptedLink,
 } from './antiLink.js';
 import { config } from './config.js';
+import { ModerationQueue } from './ModerationQueue.js';
 import { pool } from './db.js';
 import {
   getQuizQuestion,
@@ -61,6 +62,17 @@ export class BotInstance {
     this.lastScheduleRun = {};
     this.quizState = createQuizState();
     this.abuseWarnings = new Map(); // key: `${groupJid}:${senderJid}` → warning count
+    this.historyRecoverySince = null;
+    this.moderationQueue = new ModerationQueue({
+      isReady: () => this.active && this.state.connection === 'connected' && !!this.sock,
+      process: (message) => this._moderateMessage(message),
+      shouldRetry: (error) => [408, 428, 500, 503].includes(error?.output?.statusCode) || error?.message === 'Connection Closed',
+      onError: (error, message) => {
+        this.addLog('moderation_failed', { groupJid: message.key.remoteJid, details: `Could not moderate message ${message.key.id}: ${error.message}` });
+        console.error(`❌ ${this.id} moderation error:`, error.message);
+      },
+      onDrop: (message, details) => this.addLog('moderation_skipped', { groupJid: message.key.remoteJid, details }),
+    });
 
     this.state = {
       connection: 'waiting',
@@ -103,6 +115,8 @@ export class BotInstance {
 
   async deactivate() {
     this.active = false;
+    this.moderationQueue.clear();
+    this.historyRecoverySince = null;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
     for (const timer of this.muteTimers.values()) clearTimeout(timer);
@@ -118,6 +132,8 @@ export class BotInstance {
 
   async logout() {
     this.active = false;
+    this.moderationQueue.clear();
+    this.historyRecoverySince = null;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
     for (const timer of this.muteTimers.values()) clearTimeout(timer);
@@ -293,7 +309,12 @@ export class BotInstance {
       socket.ev.on('connection.update', (update) => {
         this.handleConnectionUpdate(update, socket).catch((error) => console.error(`❌ ${this.id} connection update failed:`, error.message));
       });
-      socket.ev.on('messages.upsert', ({ messages }) => { if (isCurrent()) this.handleMessages(messages); });
+      socket.ev.on('messages.upsert', ({ messages }) => {
+        if (isCurrent()) this.handleMessages(messages).catch((error) => console.error(`❌ ${this.id} message queue failed:`, error.message));
+      });
+      socket.ev.on('messaging-history.set', ({ messages }) => {
+        if (isCurrent()) this.handleHistoryMessages(messages).catch((error) => console.error(`❌ ${this.id} history recovery failed:`, error.message));
+      });
       socket.ev.on('messages.update', (updates) => { if (isCurrent()) this.handlePollUpdates(updates); });
       socket.ev.on('group-participants.update', (update) => { if (isCurrent()) this.handleParticipantUpdate(update); });
       this.startScheduler();
@@ -354,7 +375,8 @@ export class BotInstance {
       this.addLog('bot_connected', { details: `Connected as ${socket.user?.id || 'unknown'}` });
       console.log(`✅ ${this.id} (${this.number}) connected to WhatsApp!`);
       try {
-        await this.refreshGroups();
+        // Drain immediately on open, independently of the group-list refresh.
+        await Promise.all([this.moderationQueue.drain(), this.refreshGroups()]);
         if (!this.active || socket !== this.sock) return;
         if (this.displayName && this.state.groups.some((g) => g.isAdmin)) {
           try {
@@ -376,6 +398,14 @@ export class BotInstance {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
       const replaced = statusCode === DisconnectReason.connectionReplaced;
+      if (!loggedOut && !replaced && this.historyRecoverySince === null) {
+        // Overlap the last heartbeat interval; deduplication prevents double penalties.
+        this.historyRecoverySince = Math.floor(Date.now() / 1000) - 30;
+      }
+      if (loggedOut) {
+        this.moderationQueue.clear();
+        this.historyRecoverySince = null;
+      }
       this.updateConnection(loggedOut ? 'logged_out' : replaced ? 'error' : 'reconnecting');
       this.addLog('bot_disconnected', {
         details: `WhatsApp disconnected (${statusCode ?? 'unknown'}): ${loggedOut ? 'Scan a new QR to reconnect.' : replaced ? 'Session replaced by another connection. Stop the other instance before activating.' : 'Reconnecting automatically; saved pairing is preserved.'}`,
@@ -419,18 +449,21 @@ export class BotInstance {
   }
 
   async handleMessages(messages) {
-    for (const message of messages) {
-      try {
-        await this._moderateMessage(message);
-      } catch (error) {
-        console.error(`❌ ${this.id} moderation error:`, error);
-      }
-    }
+    if (!this.active) return;
+    this.moderationQueue.add(messages);
+    await this.moderationQueue.drain();
+  }
+
+  async handleHistoryMessages(messages = []) {
+    // Only recover this process's outage, never punish an entire old chat history.
+    if (this.historyRecoverySince === null) return;
+    const oldest = Math.max(this.historyRecoverySince, Math.floor(Date.now() / 1000) - 48 * 60 * 60);
+    await this.handleMessages(messages.filter((message) => Number(message.messageTimestamp) >= oldest));
   }
 
   async _moderateMessage(message) {
     const socket = this.sock;
-    if (!this.active || this.state.connection !== 'connected' || !socket) return;
+    if (!this.active || this.state.connection !== 'connected' || !socket) return false;
     if (!message?.message || message.key?.fromMe) return;
     const remoteJid = message.key?.remoteJid;
     if (!remoteJid?.endsWith('@g.us')) return;
@@ -471,7 +504,7 @@ export class BotInstance {
 
     // Fetch permissions only for potential violations, not for every group message.
     const groupMetadata = await socket.groupMetadata(remoteJid);
-    if (!this.active || socket !== this.sock) return;
+    if (!this.active || socket !== this.sock || this.state.connection !== 'connected') return false;
     const groupName = groupMetadata.subject || remoteJid;
     if (!this.isBotAdminInGroup(groupMetadata, socket.user?.id)) {
       this.addLog('moderation_skipped', { group: groupName, groupJid: remoteJid, details: 'Bot is not a WhatsApp group admin; it cannot delete other members’ messages.' });
@@ -479,17 +512,17 @@ export class BotInstance {
     }
 
     const senderJid = message.key.participant || message.participant;
+    const reason = hasLink ? 'link' : 'abusive language';
     if (isAdmin(senderJid, groupMetadata)) {
-      this.addLog('link_skipped_admin', {
+      this.addLog(hasLink ? 'link_skipped_admin' : 'abuse_skipped_admin', {
         group: groupName, groupJid: remoteJid, sender: senderJid || 'unknown',
         content: messageText.slice(0, 100), reason,
-        details: `Sender is a group admin — links from admins are not deleted.`,
+        details: 'Sender is a group admin — admin messages are exempt from moderation.',
       });
       return;
     }
 
     await socket.sendMessage(remoteJid, { delete: message.key });
-    const reason = hasLink ? 'link' : 'abusive language';
     this.addLog(hasLink ? 'link_deleted' : 'abuse_deleted', {
       group: groupName, groupJid: remoteJid,
       sender: senderJid || 'unknown',
@@ -830,6 +863,8 @@ export class BotInstance {
   // --- Cleanup ---
   stop() {
     this.active = false;
+    this.moderationQueue.clear();
+    this.historyRecoverySince = null;
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
     if (this.scheduleTimer) { clearInterval(this.scheduleTimer); this.scheduleTimer = null; }
     for (const timer of this.muteTimers.values()) clearTimeout(timer);
