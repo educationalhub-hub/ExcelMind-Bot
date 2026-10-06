@@ -924,6 +924,56 @@ export function createApp(botManager) {
     }
   });
 
+  // List recent senders in a group (for the bulk-selection UI)
+  botApi.get('/bots/:botId/groups/:groupJid/senders', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    try {
+      res.json(bot.getRecentSenders(req.params.groupJid));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Bulk-remove multiple participants
+  botApi.post('/bots/:botId/bulk-remove', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid, participants } = req.body || {};
+    if (!groupJid || !Array.isArray(participants)) return res.status(400).json({ error: 'groupJid and participants[] are required' });
+    try {
+      res.json(await bot.bulkRemoveParticipants(groupJid, participants));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Bulk-delete messages from multiple senders
+  botApi.post('/bots/:botId/bulk-delete-messages', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid, senders } = req.body || {};
+    if (!groupJid || !Array.isArray(senders)) return res.status(400).json({ error: 'groupJid and senders[] are required' });
+    try {
+      res.json(await bot.bulkDeleteBySender(groupJid, senders));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Retroactive moderation: delete messages matching text since a timestamp + warn senders
+  botApi.post('/bots/:botId/retro-moderate', async (req, res) => {
+    const bot = await botManager.getBotForUser(req.params.botId, req.user.id);
+    if (!bot) return res.status(404).json({ error: 'Bot not found' });
+    const { groupJid, searchText, sinceMs, untilMs } = req.body || {};
+    if (!groupJid || !searchText) return res.status(400).json({ error: 'groupJid and searchText are required' });
+    try {
+      res.json(await bot.retroactiveModerate(groupJid, searchText, sinceMs, untilMs));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   app.use('/api', botApi);
 
   return app;

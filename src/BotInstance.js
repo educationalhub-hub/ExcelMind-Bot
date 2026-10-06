@@ -524,6 +524,130 @@ export class BotInstance {
     return { success: true, participant: participantJid };
   }
 
+  /**
+   * List unique recent senders in a group (from the in-memory buffer),
+   * with message counts and a sample of their text — for the bulk-selection UI.
+   */
+  getRecentSenders(groupJid) {
+    if (!this.active || this.state.connection !== 'connected' || !this.sock)
+      throw new Error('Bot is not connected');
+    const buffer = this.recentMessages.get(groupJid) || [];
+    const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
+    const bySender = new Map();
+    for (const entry of buffer) {
+      const sender = entry.key?.participant || entry.key?.fromMe ? null : null;
+      const jid = entry.key?.participant;
+      if (!jid || entry.key?.fromMe) continue;
+      if (!bySender.has(jid)) bySender.set(jid, { jid, count: 0, sample: '', lastSeen: 0 });
+      const s = bySender.get(jid);
+      s.count++;
+      s.lastSeen = Math.max(s.lastSeen, entry.timestamp);
+      if (!s.sample) s.sample = entry.text.slice(0, 80);
+    }
+    return {
+      group: groupName,
+      groupJid,
+      senders: [...bySender.values()].sort((a, b) => b.lastSeen - a.lastSeen),
+    };
+  }
+
+  /**
+   * Remove multiple participants from a group in one call.
+   * @param {string} groupJid
+   * @param {string[]} participantJids - full JIDs (e.g. 234…@s.whatsapp.net)
+   */
+  async bulkRemoveParticipants(groupJid, participantJids) {
+    if (!this.active || this.state.connection !== 'connected' || !this.sock)
+      throw new Error('Bot is not connected');
+    const jids = [...new Set(participantJids)].filter(Boolean);
+    if (!jids.length) throw new Error('No participants provided');
+    const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
+    const results = [];
+    for (const jid of jids) {
+      try {
+        await this.sock.groupParticipantsUpdate(groupJid, [jid], 'remove');
+        results.push({ jid, removed: true });
+        this.addLog('manual_remove', { group: groupName, groupJid, sender: jid, details: 'Member removed (bulk) from dashboard' });
+      } catch (e) {
+        results.push({ jid, removed: false, error: e.message });
+      }
+    }
+    return { group: groupName, groupJid, results };
+  }
+
+  /**
+   * Delete all buffered messages from the given senders in a group.
+   * @param {string} groupJid
+   * @param {string[]} senderJids - full participant JIDs
+   */
+  async bulkDeleteBySender(groupJid, senderJids) {
+    if (!this.active || this.state.connection !== 'connected' || !this.sock)
+      throw new Error('Bot is not connected');
+    const want = new Set(senderJids.filter(Boolean));
+    if (!want.size) throw new Error('No senders provided');
+    const buffer = this.recentMessages.get(groupJid) || [];
+    const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
+    const matches = buffer.filter((e) => want.has(e.key?.participant));
+    let deleted = 0;
+    for (const entry of matches) {
+      try {
+        await this.sock.sendMessage(groupJid, { delete: entry.key });
+        deleted++;
+      } catch (e) { /* keep going */ }
+    }
+    this.addLog('bulk_delete', { group: groupName, groupJid, count: deleted, senders: [...want], details: `Bulk-deleted ${deleted} message(s) from ${want.size} member(s)` });
+    return { group: groupName, groupJid, deleted, senders: [...want] };
+  }
+
+  /**
+   * Retroactively moderate the buffer: delete messages matching `searchText`
+   * sent since `sinceMs` and warn each unique sender once.
+   * @param {string} groupJid
+   * @param {string} searchText - case-insensitive substring to match
+   * @param {number} sinceMs - epoch-ms lower bound (inclusive)
+   * @param {number} [untilMs] - epoch-ms upper bound (inclusive); defaults to now
+   */
+  async retroactiveModerate(groupJid, searchText, sinceMs, untilMs = Date.now()) {
+    if (!this.active || this.state.connection !== 'connected' || !this.sock)
+      throw new Error('Bot is not connected');
+    const buffer = this.recentMessages.get(groupJid) || [];
+    const needle = searchText.toLowerCase().trim();
+    if (!needle) throw new Error('searchText is required');
+    const groupName = this.state.groups.find((g) => g.jid === groupJid)?.name || groupJid;
+    const matches = buffer.filter(
+      (e) => e.text.toLowerCase().includes(needle) && e.timestamp >= sinceMs && e.timestamp <= untilMs,
+    );
+    const senders = new Set();
+    let deleted = 0;
+    for (const entry of matches) {
+      try {
+        await this.sock.sendMessage(groupJid, { delete: entry.key });
+        deleted++;
+        if (entry.key?.participant) senders.add(entry.key.participant);
+      } catch (e) { /* keep going */ }
+    }
+    // Warn each unique sender once
+    const warned = [];
+    for (const senderJid of senders) {
+      try {
+        const phoneNum = senderJid.split('@')[0].split(':')[0];
+        await this.sock.sendMessage(groupJid, {
+          text: `⚠️ @${phoneNum}, your message containing "${searchText}" was deleted. Please refrain from using such language in this group. — *OmniMod* 🤖`,
+          mentions: [senderJid],
+        });
+        warned.push(senderJid);
+      } catch (e) {
+        console.error(`❌ ${this.id} retroactive warn failed for ${senderJid}:`, e.message);
+      }
+    }
+    this.addLog('retroactive_moderation', {
+      group: groupName, groupJid, count: deleted, searchText,
+      senders: [...senders], details: `Retroactive delete: ${deleted} message(s) deleted, ${warned.length} sender(s) warned`,
+    });
+    console.log(`🧹 ${this.id}: Retroactive moderation in ${groupName} — ${deleted} deleted, ${warned.length} warned (match: "${searchText}")`);
+    return { group: groupName, groupJid, deleted, warned, senders: [...senders] };
+  }
+
   async handleHistoryMessages(messages = []) {
     // Only recover this process's outage, never punish an entire old chat history.
     if (this.historyRecoverySince === null) return;

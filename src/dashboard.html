@@ -298,8 +298,23 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px}
 
           <div class="form-group">
             <label>Select Group</label>
-            <select id="qa-group"></select>
+            <select id="qa-group" onchange="loadBulkSenders()"></select>
           </div>
+
+          <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
+          <h3 style="font-size:15px;margin-bottom:12px">☑️ Bulk Member Actions</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:8px">Select multiple recent members, then remove them from the group or delete their messages in one click. The list comes from the bot's recent-message buffer (last 200 messages).</p>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="bulkToggleAll(true)">Select All</button>
+            <button class="btn btn-outline btn-sm" onclick="bulkToggleAll(false)">Clear</button>
+            <button class="btn btn-outline btn-sm" onclick="loadBulkSenders()">↻ Refresh Members</button>
+          </div>
+          <div id="qa-bulk-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:4px;margin-bottom:12px"><div class="qr-placeholder">Select a group to load recent members.</div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-danger btn-sm" onclick="bulkRemoveSelected()">🚫 Remove Selected</button>
+            <button class="btn btn-danger btn-sm" onclick="bulkDeleteSelectedMessages()">🗑️ Delete Their Messages</button>
+          </div>
+          <div id="qa-bulk-status" style="font-size:13px;margin-top:8px"></div>
 
           <hr style="margin:16px 0;border:none;border-top:1px solid var(--border)">
           <h3 style="font-size:15px;margin-bottom:12px">🗑️ Delete a Message by Link Text</h3>
@@ -1432,6 +1447,7 @@ async function loadQuickActions(){
     const sel=document.getElementById('qa-group');
     if(!adminGroups.length){sel.innerHTML='<option value="">No admin groups available</option>';return;}
     sel.innerHTML=adminGroups.map(g=>`<option value="${g.jid}">${g.name}</option>`).join('');
+    loadBulkSenders();
   }catch{document.getElementById('qa-group').innerHTML='<option value="">Failed to load groups</option>';}
 }
 async function quickDeleteMessage(){
@@ -1462,6 +1478,65 @@ async function quickRemoveParticipant(){
     if(data.error){status.style.color='var(--danger)';status.textContent='❌ '+data.error;}
     else{status.style.color='#16a34a';status.textContent='✅ Member removed successfully.';document.getElementById('qa-phone').value='';loadLogs();}
   }catch(e){status.style.color='var(--danger)';status.textContent='❌ Request failed: '+e.message;}
+}
+
+// --- Bulk Member Actions ---
+let bulkSenders=[];
+async function loadBulkSenders(){
+  const groupJid=document.getElementById('qa-group').value;
+  const list=document.getElementById('qa-bulk-list');
+  const status=document.getElementById('qa-bulk-status');
+  status.textContent='';
+  if(!groupJid){list.innerHTML='<div class="qr-placeholder">Select a group to load recent members.</div>';bulkSenders=[];return;}
+  list.innerHTML='<div class="qr-placeholder">Loading recent members...</div>';
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/groups/${encodeURIComponent(groupJid)}/senders`);
+    if(!res.ok){const e=await res.json().catch(()=>({}));list.innerHTML=`<div class="qr-placeholder">❌ ${e.error||'Failed to load'}</div>`;return;}
+    const data=await res.json();
+    bulkSenders=data.senders||[];
+    if(!bulkSenders.length){list.innerHTML='<div class="qr-placeholder">No recent members found in the buffer.</div>';return;}
+    list.innerHTML=bulkSenders.map(s=>{
+      const phone=s.jid.split('@')[0].split(':')[0];
+      return `<label style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" class="bulk-check" value="${s.jid}" style="width:auto">
+        <span style="flex:1"><strong>+${phone}</strong> <span style="color:var(--muted);font-size:12px">(${s.count} msg${s.count>1?'s':''})</span><br><span style="font-size:12px;color:var(--muted)">"${s.sample.replace(/</g,'<')}"</span></span>
+      </label>`;
+    }).join('');
+  }catch(e){list.innerHTML='<div class="qr-placeholder">❌ '+e.message+'</div>';}
+}
+function bulkToggleAll(on){
+  document.querySelectorAll('.bulk-check').forEach(c=>c.checked=on);
+}
+function bulkSelectedJids(){return [...document.querySelectorAll('.bulk-check:checked')].map(c=>c.value);}
+async function bulkRemoveSelected(){
+  const groupJid=document.getElementById('qa-group').value;
+  const jids=bulkSelectedJids();
+  const status=document.getElementById('qa-bulk-status');
+  if(!groupJid){status.style.color='var(--danger)';status.textContent='Select a group first.';return;}
+  if(!jids.length){status.style.color='var(--danger)';status.textContent='Select at least one member.';return;}
+  if(!confirm(`Remove ${jids.length} member(s) from this group?`))return;
+  status.style.color='var(--muted)';status.textContent='Removing...';
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/bulk-remove`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid,participants:jids})});
+    const data=await res.json();
+    if(data.error){status.style.color='var(--danger)';status.textContent='❌ '+data.error;}
+    else{const ok=data.results.filter(r=>r.removed).length;status.style.color='#16a34a';status.textContent=`✅ Removed ${ok}/${jids.length} member(s).`;loadLogs();loadBulkSenders();}
+  }catch(e){status.style.color='var(--danger)';status.textContent='❌ '+e.message;}
+}
+async function bulkDeleteSelectedMessages(){
+  const groupJid=document.getElementById('qa-group').value;
+  const jids=bulkSelectedJids();
+  const status=document.getElementById('qa-bulk-status');
+  if(!groupJid){status.style.color='var(--danger)';status.textContent='Select a group first.';return;}
+  if(!jids.length){status.style.color='var(--danger)';status.textContent='Select at least one member.';return;}
+  if(!confirm(`Delete all recent messages from ${jids.length} member(s) in this group?`))return;
+  status.style.color='var(--muted)';status.textContent='Deleting messages...';
+  try{
+    const res=await fetch(`/api/bots/${currentBotId}/bulk-delete-messages`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({groupJid,senders:jids})});
+    const data=await res.json();
+    if(data.error){status.style.color='var(--danger)';status.textContent='❌ '+data.error;}
+    else{status.style.color='#16a34a';status.textContent=`✅ Deleted ${data.deleted} message(s).`;loadLogs();loadBulkSenders();}
+  }catch(e){status.style.color='var(--danger)';status.textContent='❌ '+e.message;}
 }
 
 // --- Create Bot ---
