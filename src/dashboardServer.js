@@ -28,6 +28,9 @@ export function createApp(botManager) {
   app.use(express.json());
   app.use(cookieParser());
 
+  // --- Favicon ---
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
+
   // --- Static pages ---
   app.get('/', (req, res) => sendHtml(res, './landing.html'));
   app.get('/login', (req, res) => sendHtml(res, './auth.html'));
