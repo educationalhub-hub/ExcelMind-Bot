@@ -299,9 +299,11 @@ export class BotInstance {
         auth: state,
         logger: P({ level: 'silent' }),
         printQRInTerminal: false,
-        connectTimeoutMs: 30000,
+        connectTimeoutMs: 60000,
         keepAliveIntervalMs: 15000,
         retryRequestDelayMs: 1000,
+        markOnlineOnConnect: true,
+        browser: ['OmniMod', 'Chrome', '22.0'],
       });
       this.sock = socket;
       const isCurrent = () => this.active && this.sock === socket;
@@ -311,7 +313,8 @@ export class BotInstance {
       socket.ev.on('connection.update', (update) => {
         this.handleConnectionUpdate(update, socket).catch((error) => console.error(`❌ ${this.id} connection update failed:`, error.message));
       });
-      socket.ev.on('messages.upsert', ({ messages }) => {
+      socket.ev.on('messages.upsert', ({ messages, type }) => {
+        console.log(`📥 ${this.id}: messages.upsert type=${type} count=${messages?.length || 0}`);
         if (isCurrent()) this.handleMessages(messages).catch((error) => console.error(`❌ ${this.id} message queue failed:`, error.message));
       });
       socket.ev.on('messaging-history.set', ({ messages }) => {
@@ -452,6 +455,8 @@ export class BotInstance {
 
   async handleMessages(messages) {
     if (!this.active) return;
+    const groupMsgs = messages.filter((m) => m?.key?.remoteJid?.endsWith('@g.us'));
+    console.log(`📨 ${this.id}: handleMessages ${messages.length} msg(s), ${groupMsgs.length} group msg(s)`);
     this._bufferRecentMessages(messages);
     this.moderationQueue.add(messages);
     await this.moderationQueue.drain();
